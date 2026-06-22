@@ -1,54 +1,61 @@
-import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.substitutions import LaunchConfiguration
-from launch.actions import DeclareLaunchArgument
 
 def generate_launch_description():
-    use_sim_time = LaunchConfiguration('use_sim_time')
+    
+    # Parametri di configurazione avanzata per SLAM e OctoMap 3Dc
+    parameters = {
+        'use_sim_time': True,           
+        'frame_id': 'base_link',        
+        'subscribe_depth': True,        
+        'subscribe_rgb': True,          
+        'subscribe_odom_info': False,   
+        'approx_sync': True,            
+        'queue_size': 30,               
+        
+        # --- CONFIGURAZIONE MAZZATURA VOLUMETRICA 3D (OCTOMAP) ---
+        'Grid/Sensor': '1',             
+        'Grid/3D': 'true',              
+        'Grid/RayTracing': 'true',      
+        'Grid/CellSize': '0.25',        
+        'Grid/MaxObstacleHeight': '5.0',
+        
+        # ---> AGGIUNGI QUESTI 3 PARAMETRI ANTI-PIGRIZIA <---
+        'RGBD/LinearUpdate': '0.0',    # Aggiorna la mappa anche se lo spostamento è di 0 cm
+        'RGBD/AngularUpdate': '0.0',   # Aggiorna la mappa anche se la rotazione è di 0 gradi
+        'map_always_update': True,     # Forza la pubblicazione sui topic ROS a prescindere dal movimento
+    }
 
-    # Parametri fondamentali per RTAB-Map in modalità RGB-D
-    parameters = [{
-        'frame_id': 'base_link',
-        'use_sim_time': use_sim_time,
-        'subscribe_depth': True,
-        'subscribe_rgb': True,
-        'subscribe_scan': False,
-        'approx_sync': True,          # Gazebo potrebbe avere leggeri ritardi tra RGB e Depth
-        'Grid/3D': 'true',            # Genera la mappa a Voxel (come OctoMap)
-        'Grid/RangeMax': '5.0',       # Raggio massimo della telecamera
-        'Reg/Strategy': '0',          # Strategia di registrazione (0=Visual, 1=ICP, 2=Visual+ICP)
-    }]
-
-    # Dobbiamo dire a RTAB-Map dove leggere le immagini e l'odometria che il tuo nodo Python usa
+    # Mappatura dei canali di comunicazione (Remappings)
     remappings = [
         ('rgb/image', '/camera/image_raw'),
-        ('rgb/camera_info', '/camera/camera_info'),
         ('depth/image', '/camera/depth/image_raw'),
+        ('rgb/camera_info', '/camera/camera_info'),
         ('odom', '/model/x500_drone/odometry')
     ]
 
+    # Nodo principale: Calcolatore SLAM
+    rtabmap_node = Node(
+        package='rtabmap_slam',
+        executable='rtabmap',
+        name='rtabmap',
+        output='screen',
+        parameters=[parameters],
+        remappings=remappings,
+        arguments=['-d']                # Reset automatico del database ad ogni avvio per pulizia test
+    )
+
+    # Nodo interfaccia: RTAB-Map Visualizer GUI
+    rtabmap_viz_node = Node(
+        package='rtabmap_viz',
+        executable='rtabmap_viz',
+        name='rtabmap_viz',
+        output='screen',
+        parameters=[parameters],
+        remappings=remappings
+    )
+
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
-
-        # Il nodo principale dello SLAM (Cervello spaziale)
-        Node(
-            package='rtabmap_slam',
-            executable='rtabmap',
-            name='rtabmap',
-            output='screen',
-            parameters=parameters,
-            remappings=remappings,
-            arguments=['-d'] # Il flag '-d' cancella il database precedente ad ogni avvio (Clean start)
-        ),
-
-        # Il visualizzatore nativo di RTAB-Map (Molto utile per vedere i Loop Closure)
-        Node(
-            package='rtabmap_viz',
-            executable='rtabmap_viz',
-            name='rtabmap_viz',
-            output='screen',
-            parameters=parameters,
-            remappings=remappings
-        )
+        rtabmap_node,
+        #rtabmap_viz_node
     ])

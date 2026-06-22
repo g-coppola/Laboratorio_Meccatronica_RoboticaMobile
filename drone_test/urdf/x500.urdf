@@ -1,13 +1,5 @@
 <?xml version="1.0"?>
 <robot name="x500_drone">
-
-  <link name="dummy_root"/>
-  
-  <joint name="dummy_joint" type="fixed">
-    <parent link="dummy_root"/>
-    <child link="base_link"/>
-  </joint>
-
   <material name="ccw_prop_color">
     <color rgba="0.8 0.1 0.1 1.0"/>
   </material>
@@ -363,7 +355,7 @@
 
   <gazebo reference="camera_link">
     <sensor name="rgbd_camera" type="rgbd_camera">
-      <ignition_frame_id>camera_link</ignition_frame_id>
+      <ignition_frame_id>camera_optical_link</ignition_frame_id>
       <always_on>true</always_on>
       <update_rate>30</update_rate> 
       <visualize>true</visualize>
@@ -373,7 +365,7 @@
         <image>
           <width>640</width>
           <height>480</height>
-          <format>RGB_INT8</format>
+          <format>R8G8B8</format>
         </image>
         <clip>
           <near>0.1</near>
@@ -397,6 +389,19 @@
       <robot_base_frame>base_link</robot_base_frame>
       <odom_publish_frequency>50</odom_publish_frequency>
       <dimensions>3</dimensions>
+      <odom_topic>/model/x500_drone/odometry</odom_topic>
+      <tf_topic>/model/x500_drone/pose</tf_topic>
+      <publish_tf>true</publish_tf>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <joint_name>rotor_0_joint</joint_name>
+      <joint_name>rotor_1_joint</joint_name>
+      <joint_name>rotor_2_joint</joint_name>
+      <joint_name>rotor_3_joint</joint_name>
     </plugin>
   </gazebo>
 

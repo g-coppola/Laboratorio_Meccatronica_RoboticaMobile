@@ -58,12 +58,6 @@ def generate_launch_description():
             description='Use simulation clock'
         ),
 
-        # --------------------------------------------------
-        # Gazebo Fortress resource path (mesh/risorse)
-        # Su Fortress la variabile storica è IGN_GAZEBO_RESOURCE_PATH;
-        # impostiamo anche GZ_SIM_RESOURCE_PATH per compatibilità
-        # con build più recenti del binding che la leggono comunque.
-        # --------------------------------------------------
         SetEnvironmentVariable(
             'IGN_GAZEBO_RESOURCE_PATH',
             workspace_share_dir
@@ -134,12 +128,20 @@ def generate_launch_description():
                 
                 # Ground truth odometry
                 '/model/x500_drone/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+
+                # TF
+                '/model/x500_drone/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+
+                # Joint State Pubblisher
+                '/world/warehouse/model/x500_drone/joint_state@sensor_msgs/msg/JointState[gz.msgs.Model',
             ],
             remappings=[
                 # Traduciamo i topic di Gazebo nei nomi standard di ROS 2
                 ('/camera/image', '/camera/image_raw'),
                 ('/camera/points', '/camera/depth/points'),
                 ('/camera/depth_image', '/camera/depth/image_raw'),
+                ('/model/x500_drone/pose', '/tf'),
+                ('/world/warehouse/model/x500_drone/joint_state', '/joint_states'),
             ]
         ),
     ])
