@@ -19,6 +19,9 @@ def generate_launch_description():
         'Grid/RayTracing': 'true',      
         'Grid/CellSize': '0.25',        
         'Grid/MaxObstacleHeight': '5.0',
+        'Grid/NormalsSegmentation': 'false',   # passthrough invece di segmentazione tramite normali
+        'Grid/MaxGroundHeight': '0.0',         # disabilita la ricerca di un piano "terra" - tutto è ostacolo/punto valido
+        'Grid/GroundIsObstacle': 'true',       # utile per UAV: considera tutto come ostacolo, niente distinzione ground/obstacle
         
         # ---> AGGIUNGI QUESTI 3 PARAMETRI ANTI-PIGRIZIA <---
         'RGBD/LinearUpdate': '0.0',    # Aggiorna la mappa anche se lo spostamento è di 0 cm
@@ -57,5 +60,5 @@ def generate_launch_description():
 
     return LaunchDescription([
         rtabmap_node,
-        #rtabmap_viz_node
+        rtabmap_viz_node
     ])
