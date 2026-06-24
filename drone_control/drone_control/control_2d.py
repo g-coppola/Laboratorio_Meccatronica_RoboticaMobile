@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseStamped
 from actuator_msgs.msg import Actuators
 import math
 
@@ -36,9 +36,7 @@ class FullDroneController(Node):
         # --- Sottoscrizioni e Pubblicazioni ---
         self.odom_sub = self.create_subscription(Odometry, '/model/x500_drone/odometry', self.odom_callback, 10)
         self.cmd_vel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
-        
-        # AGGIORNAMENTO: Riceviamo Odometry (Pose + Twist) invece di PoseStamped
-        self.goal_sub = self.create_subscription(Odometry, '/goal_pose', self.goal_callback, 10)
+        self.goal_sub = self.create_subscription(PoseStamped, '/goal_pose', self.goal_callback, 10)
         
         self.motor_pub = self.create_publisher(Actuators, '/x500_drone/command/motor_speed', 10)
         
@@ -47,21 +45,14 @@ class FullDroneController(Node):
         self.curr_y = 0.0
         self.curr_z = 0.0
         
-        # --- Setpoint (Coordinate e Velocità Bersaglio) ---
+        # --- Setpoint (Coordinate Bersaglio) ---
         self.target_x = 0.0
         self.target_y = 0.0
         self.target_z = 2.0      
         self.target_yaw = 0.0
         
-        self.target_vx = 0.0
-        self.target_vy = 0.0
-        self.target_vz = 0.0
-        
         self.target_roll = 0.0
         self.target_pitch = 0.0
-        
-        # Guadagno del Feedforward (Regolabile)
-        self.k_ff_xy = 0.25 
         
         # --- PID LOOP ESTERNO (Posizione X, Y) ---
         self.pid_x = PIDController(kp=0.15, ki=0.0, kd=0.1, min_out=-0.45, max_out=0.45)
@@ -76,7 +67,7 @@ class FullDroneController(Node):
         self.last_time = 0.0
         self.debug_counter = 0
         
-        self.get_logger().info("Flight Controller Autonomo Completo (Feedforward Enable) Avviato!")
+        self.get_logger().info("Flight Controller Autonomo Completo Avviato!")
 
     def quaternion_to_euler(self, w, x, y, z):
         sinr_cosp = 2 * (w * x + y * z)
@@ -96,19 +87,18 @@ class FullDroneController(Node):
         self.target_yaw += msg.angular.z * 0.1
 
     def goal_callback(self, msg):
-        # Estrai Posa
-        self.target_x = msg.pose.pose.position.x
-        self.target_y = msg.pose.pose.position.y
-        self.target_z = msg.pose.pose.position.z
+        # Riceve coordinate globali da RViz
+        self.target_x = msg.pose.position.x
+        self.target_y = msg.pose.position.y
         
-        # Estrai Twist (Velocità generate dal Planner/Traiettoria)
-        self.target_vx = msg.twist.twist.linear.x
-        self.target_vy = msg.twist.twist.linear.y
-        self.target_vz = msg.twist.twist.linear.z
-        
-        q = msg.pose.pose.orientation
+        # AGGIORNAMENTO: Estraiamo lo Yaw desiderato convertendo il Quaternone di RViz
+        q = msg.pose.orientation
         _, _, rviz_yaw = self.quaternion_to_euler(q.w, q.x, q.y, q.z)
         self.target_yaw = rviz_yaw
+        
+        self.get_logger().info(
+            f"Nuovo waypoint da RViz -> X: {self.target_x:.2f}m, Y: {self.target_y:.2f}m, Angolo: {math.degrees(self.target_yaw):.1f}°"
+        )
 
     def odom_callback(self, msg):
         current_time = msg.header.stamp.sec + (msg.header.stamp.nanosec * 1e-9)
@@ -128,24 +118,18 @@ class FullDroneController(Node):
         q = msg.pose.pose.orientation
         curr_roll, curr_pitch, curr_yaw = self.quaternion_to_euler(q.w, q.x, q.y, q.z)
 
-        # --- LOOP ESTERNO: CONTROLLO POSIZIONE X, Y CON FEEDFORWARD ---
+        # --- LOOP ESTERNO: CONTROLLO POSIZIONE X, Y ---
         err_x = self.target_x - self.curr_x
         err_y = self.target_y - self.curr_y
         
+        # Rotazione dell'errore globale nel Body Frame del drone
         cos_y = math.cos(curr_yaw)
         sin_y = math.sin(curr_yaw)
-        
-        # 1. Rotazione dell'errore globale nel Body Frame
         err_x_body = err_x * cos_y + err_y * sin_y
         err_y_body = -err_x * sin_y + err_y * cos_y
         
-        # 2. Rotazione della velocità target nel Body Frame (Azione Anticipatoria)
-        target_vx_body = self.target_vx * cos_y + self.target_vy * sin_y
-        target_vy_body = -self.target_vx * sin_y + self.target_vy * cos_y
-        
-        # 3. Azione di Controllo Combinata: PID Reattivo + Feedforward Predittivo
-        u_x = self.pid_x.compute(err_x_body, dt) + (self.k_ff_xy * target_vx_body)
-        u_y = self.pid_y.compute(err_y_body, dt) + (self.k_ff_xy * target_vy_body)
+        u_x = self.pid_x.compute(err_x_body, dt)
+        u_y = self.pid_y.compute(err_y_body, dt)
         
         self.target_pitch = u_x
         self.target_roll = -u_y
@@ -187,8 +171,9 @@ class FullDroneController(Node):
         self.debug_counter += 1
         if self.debug_counter >= 50:
             distanza = math.sqrt(err_x**2 + err_y**2)
-            # Rimuovo il log per evitare spam eccessivo, puoi riattivarlo se serve
-            # self.get_logger().info(...)
+            self.get_logger().info(
+                f"Pos: ({self.curr_x:.1f},{self.curr_y:.1f}) -> Target: ({self.target_x:.1f},{self.target_y:.1f}) | Dist: {distanza:.2f}m | Target_Yaw: {math.degrees(self.target_yaw):.1f}°"
+            )
             self.debug_counter = 0
 
 def main(args=None):
