@@ -108,40 +108,35 @@ def generate_launch_description():
             package='ros_gz_bridge',
             executable='parameter_bridge',
             output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time
-            }],
+            parameters=[{'use_sim_time': use_sim_time}],
             arguments=[
                 # Clock
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
                 
                 # RGB Camera
-                '/camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
-                '/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+                '/camera@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
                 
-                # Depth Camera e PointCloud
-                '/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
-                '/camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
+                # LiDAR Scan
+                '/scan_cloud/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
                 
-                # Motor commands ROS -> Gazebo
+                # Motor commands
                 '/x500_drone/command/motor_speed@actuator_msgs/msg/Actuators]gz.msgs.Actuators',
                 
-                # Ground truth odometry
-                '/model/x500_drone/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-
-                # TF
+                # Ground truth odometry (mantenuta per debug, ma non usata dai controllori)
+                '/gazebo/ground_truth/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+                
+                # TF e Joints
                 '/model/x500_drone/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
-
-                # Joint State Pubblisher
                 '/world/warehouse/model/x500_drone/joint_state@sensor_msgs/msg/JointState[gz.msgs.Model',
             ],
             remappings=[
-                # Traduciamo i topic di Gazebo nei nomi standard di ROS 2
-                ('/camera/image', '/camera/image_raw'),
-                ('/camera/points', '/camera/depth/points'),
-                ('/camera/depth_image', '/camera/depth/image_raw'),
+                ('/camera', '/camera/image_raw'),
+                ('/camera_info', '/camera/camera_info'),
                 ('/model/x500_drone/pose', '/tf'),
                 ('/world/warehouse/model/x500_drone/joint_state', '/joint_states'),
+                ('/scan_cloud/points', '/scan_cloud'),
+                ('/gazebo/ground_truth/odometry', '/odom'),
             ]
         ),
     ])

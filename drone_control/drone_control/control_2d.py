@@ -34,7 +34,7 @@ class FullDroneController(Node):
         super().__init__('full_drone_controller')
         
         # --- Sottoscrizioni e Pubblicazioni ---
-        self.odom_sub = self.create_subscription(Odometry, '/model/x500_drone/odometry', self.odom_callback, 10)
+        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         self.cmd_vel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
         self.goal_sub = self.create_subscription(PoseStamped, '/goal_pose', self.goal_callback, 10)
         

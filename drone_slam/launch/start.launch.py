@@ -1,68 +1,99 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
-    
-    # Parametri di configurazione avanzata per SLAM e OctoMap 3Dc
-    parameters = {
-        'use_sim_time': True,           
-        'frame_id': 'base_link',        
-        'subscribe_depth': True,        
-        'subscribe_rgb': True,          
-        'subscribe_odom_info': False,   
-        'approx_sync': True,            
-        'queue_size': 30,               
-        
-        # --- CONFIGURAZIONE MAZZATURA VOLUMETRICA 3D (OCTOMAP) ---
-        'Grid/Octomap': 'true',
-        'Grid/Octomap/Header': 'true',      # pubblica anche il frame
-        'Grid/Octomap/Publish': 'true',
-        'Grid/Octomap/Color': 'true',
-        'Grid/Sensor': '1',             
-        'Grid/3D': 'true',              
-        'Grid/RayTracing': 'true',      
-        'Grid/CellSize': '0.25',        
-        'Grid/MaxObstacleHeight': '5.0',
-        'Grid/NormalsSegmentation': 'false',   # passthrough invece di segmentazione tramite normali
-        'Grid/MaxGroundHeight': '0.2',         # disabilita la ricerca di un piano "terra" - tutto è ostacolo/punto valido
-        'Grid/GroundIsObstacle': 'false',       # utile per UAV: considera tutto come ostacolo, niente distinzione ground/obstacle
-        
-        # ---> AGGIUNGI QUESTI 3 PARAMETRI ANTI-PIGRIZIA <---
-        'RGBD/LinearUpdate': '0.0',    # Aggiorna la mappa anche se lo spostamento è di 0 cm
-        'RGBD/AngularUpdate': '0.0',   # Aggiorna la mappa anche se la rotazione è di 0 gradi
-        'map_always_update': True,     # Forza la pubblicazione sui topic ROS a prescindere dal movimento
+
+    params = {
+
+        'use_sim_time': True,
+
+        # frames
+        'frame_id': 'base_link',
+        'odom_frame_id': 'odom',
+        'map_frame_id': 'map',
+
+        # SENSORI
+        'subscribe_scan_cloud': True,
+        'subscribe_rgb': False,
+        'subscribe_depth': False,
+
+        # ODOM
+        'odom_sensor_sync': True,
+
+        # SLAM CORE
+        'Reg/Strategy': '0',
+        'Rtabmap/DetectionRate': '1',
+
+        # KEYFRAMES (CRUCIALE)
+        'RGBD/LinearUpdate': '0.05',
+        'RGBD/AngularUpdate': '0.01',
+
+        'Mem/IncrementalMemory': 'true',
+
+        # CLOUD
+        'Cloud/FilterNaN': 'true',
+        'Cloud/Decimation': '2'
     }
 
-    # Mappatura dei canali di comunicazione (Remappings)
-    remappings = [
-        ('rgb/image', '/camera/image_raw'),
-        ('depth/image', '/camera/depth/image_raw'),
-        ('rgb/camera_info', '/camera/camera_info'),
-        ('odom', '/model/x500_drone/odometry')
+    remap = [
+        ('scan_cloud', '/scan_cloud'),
+        ('odom', '/odom')
     ]
 
-    # Nodo principale: Calcolatore SLAM
+    # =========================
+    # ❗ RTABMAP SLAM NODE GIUSTO
+    # =========================
     rtabmap_node = Node(
         package='rtabmap_slam',
         executable='rtabmap',
-        name='rtabmap',
         output='screen',
-        parameters=[parameters],
-        remappings=remappings,
-        arguments=['-d']                # Reset automatico del database ad ogni avvio per pulizia test
+        parameters=[params],
+        remappings=remap
     )
 
-    # Nodo interfaccia: RTAB-Map Visualizer GUI
-    rtabmap_viz_node = Node(
+    # =========================
+    # VIZ
+    # =========================
+    viz_node = Node(
         package='rtabmap_viz',
         executable='rtabmap_viz',
-        name='rtabmap_viz',
         output='screen',
-        parameters=[parameters],
-        remappings=remappings
+        parameters=[params],
+        remappings=remap
+    )
+
+    # =========================
+    # OCTOMAP
+    # =========================
+    octomap_node = Node(
+        package='octomap_server',
+        executable='octomap_server_node',
+        name='octomap_server',
+        output='screen',
+        parameters=[{
+            'frame_id': 'map',
+            'base_frame_id': 'base_link',
+
+            'resolution': 0.10,
+
+            'sensor_model/max_range': 15.0,
+            'sensor_model/min_range': 0.4,
+
+            'filter_ground': False,
+
+            'latch': True,
+
+            'point_cloud_min_z': -2.0,
+            'point_cloud_max_z': 2.0,
+        }],
+        remappings=[
+            ('cloud_in', '/scan_cloud')  
+        ]
     )
 
     return LaunchDescription([
         rtabmap_node,
-        rtabmap_viz_node
+        viz_node,
+        octomap_node
     ])
