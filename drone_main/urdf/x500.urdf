@@ -18,31 +18,31 @@
     <visual name="base_link_visual">
       <origin xyz="0 0 0.025" rpy="0 0 3.141592"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/NXP-HGD-CF.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/NXP-HGD-CF.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <visual name="5010_motor_base_0">
       <origin xyz="0.174 0.174 0.032" rpy="0 0 -0.45"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Base.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Base.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <visual name="5010_motor_base_1">
       <origin xyz="-0.174 0.174 0.032" rpy="0 0 -0.45"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Base.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Base.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <visual name="5010_motor_base_2">
       <origin xyz="0.174 -0.174 0.032" rpy="0 0 -0.45"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Base.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Base.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <visual name="5010_motor_base_3">
       <origin xyz="-0.174 -0.174 0.032" rpy="0 0 -0.45"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Base.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Base.dae" scale="1 1 1"/>
       </geometry>
     </visual>
 
@@ -87,14 +87,14 @@
     <visual>
       <origin xyz="-0.022 -0.146 -0.016" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/1345_prop_ccw.stl" scale="0.846 0.846 0.846"/>
+        <mesh filename="package://drone_main/meshes/1345_prop_ccw.stl" scale="0.846 0.846 0.846"/>
       </geometry>
       <material name="ccw_prop_color"/>
     </visual>
     <visual name="rotor_0_visual_motor_bell">
       <origin xyz="0 0 -0.032" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Bell.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Bell.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <collision>
@@ -141,14 +141,14 @@
     <visual>
       <origin xyz="-0.022 -0.146 -0.016" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/1345_prop_ccw.stl" scale="0.846 0.846 0.846"/>
+        <mesh filename="package://drone_main/meshes/1345_prop_ccw.stl" scale="0.846 0.846 0.846"/>
       </geometry>
       <material name="ccw_prop_color"/>
     </visual>
     <visual name="rotor_1_visual_motor_bell">
       <origin xyz="0 0 -0.032" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Bell.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Bell.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <collision>
@@ -195,14 +195,14 @@
     <visual>
       <origin xyz="-0.022 -0.146 -0.016" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/1345_prop_cw.stl" scale="0.846 0.846 0.846"/>
+        <mesh filename="package://drone_main/meshes/1345_prop_cw.stl" scale="0.846 0.846 0.846"/>
       </geometry>
       <material name="cw_prop_color"/>
     </visual>
     <visual name="rotor_2_visual_motor_bell">
       <origin xyz="0 0 -0.032" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Bell.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Bell.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <collision>
@@ -249,14 +249,14 @@
     <visual>
       <origin xyz="-0.022 -0.146 -0.016" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/1345_prop_cw.stl" scale="0.846 0.846 0.846"/>
+        <mesh filename="package://drone_main/meshes/1345_prop_cw.stl" scale="0.846 0.846 0.846"/>
       </geometry>
       <material name="cw_prop_color"/>
     </visual>
     <visual name="rotor_3_visual_motor_bell">
       <origin xyz="0 0 -0.032" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://drone_test/meshes/5010Bell.dae" scale="1 1 1"/>
+        <mesh filename="package://drone_main/meshes/5010Bell.dae" scale="1 1 1"/>
       </geometry>
     </visual>
     <collision>

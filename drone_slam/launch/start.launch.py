@@ -38,11 +38,16 @@ def generate_launch_description():
 
     remap = [
         ('scan_cloud', '/scan_cloud'),
-        ('odom', '/odom')
+        ('odom', '/odom'),
+        ('octomap_full', '/rtabmap/octomap_full'),
+        ('octomap_binary', '/rtabmap/octomap_binary'),
+        ('octomap_grid', '/rtabmap/octomap_grid'),
+        ('octomap_occupancy_grid', '/rtabmap/octomap_occupancy_grid'),
+        ('grid_map', '/rtabmap/grid_map'),
     ]
 
     # =========================
-    # ❗ RTABMAP SLAM NODE GIUSTO
+    # RTABMAP SLAM NODE 
     # =========================
     rtabmap_node = Node(
         package='rtabmap_slam',
@@ -88,7 +93,7 @@ def generate_launch_description():
             'point_cloud_max_z': 2.0,
         }],
         remappings=[
-            ('cloud_in', '/scan_cloud')  
+            ('cloud_in', '/scan_cloud')
         ]
     )
 

@@ -7,7 +7,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    package_path = get_package_share_directory('drone_test')
+    package_path = get_package_share_directory('drone_main')
     default_rviz_config_path = os.path.join(package_path, 'rviz', 'config1.rviz')
     
     rviz_arg = DeclareLaunchArgument(
@@ -22,7 +22,6 @@ def generate_launch_description():
         name='rviz2',
         output='screen',
         arguments=['-d', LaunchConfiguration('rvizconfig')],
-        # Questo parametro risolve il problema di sincronizzazione dell'albero TF
         parameters=[{'use_sim_time': True}]
     )
 

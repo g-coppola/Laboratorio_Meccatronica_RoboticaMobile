@@ -21,7 +21,6 @@ setup(
     entry_points={
         'console_scripts': [
             'hovering = drone_control.hovering:main',
-            'camera_stream = drone_control.camera_stream:main',
             'full_control = drone_control.full_control:main',
             'control_2d = drone_control.control_2d:main',
             'lqr_control = drone_control.lqr_control:main',

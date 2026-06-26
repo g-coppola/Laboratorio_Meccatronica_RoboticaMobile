@@ -18,7 +18,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    pkg_name = 'drone_test'
+    pkg_name = 'drone_main'
     use_sim_time = LaunchConfiguration('use_sim_time')
     pkg_share = FindPackageShare(pkg_name)
     ros_gz_sim_pkg = FindPackageShare('ros_gz_sim')
