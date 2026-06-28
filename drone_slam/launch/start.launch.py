@@ -33,7 +33,17 @@ def generate_launch_description():
 
         # CLOUD
         'Cloud/FilterNaN': 'true',
-        'Cloud/Decimation': '2'
+        'Cloud/Decimation': '2',
+
+        # OCCUPANCY GRID 3D / OCTOMAP (rtabmap genera lui l'octomap, niente octomap_server)
+        'Grid/3D': 'true',                   # costruisce griglia 3D, non solo proiezione 2D
+        'Grid/FromDepth': 'false',           # la sorgente e' la nuvola lidar, non una depth camera
+        'Grid/Sensor': '0',                  # 0 = usa scan_cloud come sorgente della griglia
+        'Grid/RangeMax': '15.0',             # deve combaciare col range max del lidar
+        'Grid/CellSize': '0.25',             # risoluzione voxel (prima era 'resolution' di octomap_server)
+        'Grid/RayTracing': 'true',           # marca anche le celle libere via ray tracing, non solo quelle occupate
+        'Grid/NormalsSegmentation': 'false', # niente segmentazione superfici basata su normali (serve per depth camera)
+        'RGBD/CreateOccupancyGrid': 'true'   # abilita la creazione/pubblicazione della grid 3D/octomap
     }
 
     remap = [
@@ -68,37 +78,7 @@ def generate_launch_description():
         remappings=remap
     )
 
-    # =========================
-    # OCTOMAP
-    # =========================
-    octomap_node = Node(
-        package='octomap_server',
-        executable='octomap_server_node',
-        name='octomap_server',
-        output='screen',
-        parameters=[{
-            'frame_id': 'map',
-            'base_frame_id': 'base_link',
-
-            'resolution': 0.10,
-
-            'sensor_model/max_range': 15.0,
-            'sensor_model/min_range': 0.4,
-
-            'filter_ground': False,
-
-            'latch': True,
-
-            'point_cloud_min_z': -2.0,
-            'point_cloud_max_z': 2.0,
-        }],
-        remappings=[
-            ('cloud_in', '/scan_cloud')
-        ]
-    )
-
     return LaunchDescription([
         rtabmap_node,
-        viz_node,
-        octomap_node
+        viz_node
     ])

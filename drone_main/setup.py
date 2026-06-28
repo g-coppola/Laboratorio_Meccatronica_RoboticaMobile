@@ -49,6 +49,7 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_stream = drone_main.camera_stream:main',
+            'camera_yolo = drone_main.camera_yolo:main',
         ],
     },
 )
