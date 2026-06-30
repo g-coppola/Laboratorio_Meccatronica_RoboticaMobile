@@ -3,9 +3,18 @@
 <package format="3">
   <name>drone_control</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Autonomous flight controller for X500 drone</description>
+
   <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
   <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>actuator_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -205,7 +205,7 @@ class AStarPlannerNode(Node):
 
         # --- PROTEZIONE THREAD (RACE CONDITION PREVENTION) ---
         if self.is_planning:
-            self.get_logger().warn('A* sta ancora calcolando! Goal ignorato per salvare la CPU.')
+            self.get_logger().warn('⚠️ A* sta ancora calcolando! Goal ignorato per salvare la CPU.')
             return
 
         self.is_planning = True

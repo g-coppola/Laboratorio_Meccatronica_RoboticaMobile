@@ -127,6 +127,214 @@
       <uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri>
     </include>
 
+    <model name="beam_1">
+      <static>true</static>
+      <pose>5.5 1.5 3.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 5.0 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_2">
+      <static>true</static>
+      <pose>5.5 1.5 3.0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_3">
+      <static>true</static>
+      <pose>3.5 1.5 3.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 5.0 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_4">
+      <static>true</static>
+      <pose>3.5 1.5 3.0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_5">
+      <static>true</static>
+      <pose>-5.5 1.5 3.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 5.0 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_6">
+      <static>true</static>
+      <pose>-5.5 1.5 3.0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_7">
+      <static>true</static>
+      <pose>-3.5 1.5 3.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 5.0 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beam_8">
+      <static>true</static>
+      <pose>-3.5 1.5 3.0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 5.0 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.0 0.0 1.0</ambient>
+            <diffuse>0.0 0.0 0.0 1.0</diffuse>
+            <specular>0.1 0.1 0.1 1.0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
     <light name="sunUTC" type="directional">
       <pose>0 0 500 0 -0 0</pose>
       <cast_shadows>false</cast_shadows>
