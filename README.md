@@ -126,7 +126,7 @@ ros2 topic pub --once /planner_goal geometry_msgs/msg/PoseStamped "{
   header: {frame_id: 'odom'},
   pose: {
     position: {x: 5.0, y: 0.0, z: 7.0},
-    orientation: {w: 1.0}
+    orientation: {w: 0.0}
   }
 }"
 ```
@@ -139,6 +139,15 @@ ros2 run drone_follow yolo_tracker
 ```
 
 ## 8. Visualization and Debug Tools
+To visualize the robot state, TF tree, and sensor data, an RViz configuration is provided.
+
+Launch RViz with:
+
+```bash
+ros2 launch drone_main display.launch.py
+```
+**Recommended to launch after starting Gazebo + SLAM for full visualization.**
+
 For visualization purposes, two additional nodes are available.
 
 ### Display the RGB Camera
