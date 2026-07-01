@@ -143,9 +143,9 @@ class AStarPlannerNode(Node):
         super().__init__('astar_planner_node')
 
         self.declare_parameter('cell_size', 0.25)          
-        self.declare_parameter('inflate_cells', 2)          
+        self.declare_parameter('inflate_cells', 3)          
         self.declare_parameter('waypoint_min_dist', 0.5)    
-        self.declare_parameter('goal_reach_threshold', 0.3) 
+        self.declare_parameter('goal_reach_threshold', 0.35) 
 
         cell_size = self.get_parameter('cell_size').value
         inflate_cells = self.get_parameter('inflate_cells').value

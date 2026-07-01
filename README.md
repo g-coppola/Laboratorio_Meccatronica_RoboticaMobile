@@ -75,12 +75,12 @@ sudo apt install ros-humble-octomap-rviz-plugins
 
 ## 5. Python dependencies (AI/Vision)
 ```bash
-pip install numpy opencv-python ultralytics
+pip3 install ultralytics
 ```
 
 Compatibily note (IMPORTANT for ROS 2):
 ```bash
-pip install "numpy<2"
+pip3 install "numpy<2"
 ```
 Reason:
 - cv_brdge and OpenCV ROS bindings may break with NumPy 2.x
@@ -119,6 +119,8 @@ ros2 run drone_control full_control
 
 Once all the nodes are running, a navigation goal can be sent by publishing a `PoseStamped` message on the `/planner_goal` topic.
 
+Example: Send the drone to `(x: 5.0, y: 0.0, z: 7.0)` while maintaining a forward-facing orientation `(Yaw = 0°)`:
+
 Example:
 
 ```bash
@@ -126,10 +128,14 @@ ros2 topic pub --once /planner_goal geometry_msgs/msg/PoseStamped "{
   header: {frame_id: 'odom'},
   pose: {
     position: {x: 5.0, y: 0.0, z: 7.0},
-    orientation: {w: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
   }
 }"
 ```
+
+Note: The orientation field uses **Quaternions**. To change the final facing direction, modify the `z` and `w` values:
+- Turn 90° Left (Yaw = 90°): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
+- Turn 180° Backward (Yaw = 180°): `orientation: {x: 0.0, y: 0.0, z: 1.0, w: 0.0}`
 
 ### Human Following
 To enable vision-based human detection:
