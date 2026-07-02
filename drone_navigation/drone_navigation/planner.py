@@ -161,8 +161,9 @@ class AStarPlannerNode(Node):
 
         self.path_waypoints = []   
         self.active_goal = None    
+        self.final_goal_orientation = None  # Memorizza l'orientamento finale desiderato
         
-        # --- NUOVO: LOCK PER PROTEGGERE IL COMPUTER ---
+        # --- PROTEZIONE COMPUTER ---
         self.is_planning = False
 
         qos_sensor = QoSProfile(
@@ -218,6 +219,7 @@ class AStarPlannerNode(Node):
             goal_z = msg.pose.position.z
 
             self.active_goal = (goal_x, goal_y, goal_z)
+            self.final_goal_orientation = msg.pose.orientation  # Salva l'orientamento finale richiesto
 
             start_cell = self.grid.world_to_grid(self.curr_x, self.curr_y, self.curr_z)
             goal_cell = self.grid.world_to_grid(goal_x, goal_y, goal_z)
@@ -237,7 +239,6 @@ class AStarPlannerNode(Node):
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
             
         finally:
-            # Rilascia il lock per consentire il calcolo di nuovi percorsi futuri
             self.is_planning = False
 
     def control_loop(self):
@@ -269,14 +270,20 @@ class AStarPlannerNode(Node):
         msg.pose.pose.position.y = target[1]
         msg.pose.pose.position.z = target[2]
 
-        dx = target[0] - self.curr_x
-        dy = target[1] - self.curr_y
-        yaw_desiderato = math.atan2(dy, dx)
+        # --- GESTIONE DELLO YAW ---
+        # Se siamo all'ultimo waypoint della traiettoria, usa l'orientamento finale richiesto
+        if len(self.path_waypoints) == 1 and self.final_goal_orientation is not None:
+            msg.pose.pose.orientation = self.final_goal_orientation
+        else:
+            # Altrimenti, fa guardare il drone verso il prossimo waypoint (tangente alla traiettoria)
+            dx = target[0] - self.curr_x
+            dy = target[1] - self.curr_y
+            yaw_desiderato = math.atan2(dy, dx)
 
-        msg.pose.pose.orientation.x = 0.0
-        msg.pose.pose.orientation.y = 0.0
-        msg.pose.pose.orientation.z = math.sin(yaw_desiderato / 2.0)
-        msg.pose.pose.orientation.w = math.cos(yaw_desiderato / 2.0)
+            msg.pose.pose.orientation.x = 0.0
+            msg.pose.pose.orientation.y = 0.0
+            msg.pose.pose.orientation.z = math.sin(yaw_desiderato / 2.0)
+            msg.pose.pose.orientation.w = math.cos(yaw_desiderato / 2.0)
 
         self.goal_pose_pub.publish(msg)
 

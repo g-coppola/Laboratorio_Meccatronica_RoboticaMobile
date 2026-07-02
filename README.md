@@ -119,7 +119,7 @@ ros2 run drone_control full_control
 
 Once all the nodes are running, a navigation goal can be sent by publishing a `PoseStamped` message on the `/planner_goal` topic.
 
-Example: Send the drone to `(x: 5.0, y: 0.0, z: 7.0)` while maintaining a forward-facing orientation `(Yaw = 0°)`:
+Example: Send the drone to `(x: 2.0, y: 1.0, z: 4.0)` while maintaining a forward-facing orientation `(Yaw = 0°)`:
 
 Example:
 
@@ -127,15 +127,17 @@ Example:
 ros2 topic pub --once /planner_goal geometry_msgs/msg/PoseStamped "{
   header: {frame_id: 'odom'},
   pose: {
-    position: {x: 5.0, y: 0.0, z: 7.0},
+    position: {x: 2.0, y: 1.0, z: 4.0},
     orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
   }
 }"
 ```
 
 Note: The orientation field uses **Quaternions**. To change the final facing direction, modify the `z` and `w` values:
-- Turn 90° Left (Yaw = 90°): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
-- Turn 180° Backward (Yaw = 180°): `orientation: {x: 0.0, y: 0.0, z: 1.0, w: 0.0}`
+- 0° (Forward): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
+- 90° (Left): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
+- 180° (Backward): `orientation: {x: 0.0, y: 0.0, z: 1.0, w: 0.0}`
+- -90°/270° (Right): `orientation: {x: 0.0, y: 0.0, z: -0.707, w: 0.707}`
 
 ### Human Following
 To enable vision-based human detection:
