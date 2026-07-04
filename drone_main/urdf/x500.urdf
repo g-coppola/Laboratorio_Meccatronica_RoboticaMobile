@@ -334,7 +334,7 @@
 
   <gazebo reference="camera_link">
     <sensor name="camera" type="camera">
-      <ignition_frame_id>camera_optical_link</ignition_frame_id>
+      <gz_frame_id>camera_optical_link</gz_frame_id>
       <always_on>true</always_on>
       <update_rate>15</update_rate> 
       <visualize>true</visualize>
@@ -373,7 +373,7 @@
 
   <gazebo reference="lidar_link">
     <sensor name='gpu_lidar' type='gpu_lidar'>
-      <ignition_frame_id>lidar_link</ignition_frame_id>
+      <gz_frame_id>lidar_link</gz_frame_id>
       <pose>0 0 0 0 0 0</pose>
       <topic>scan_cloud</topic> 
       <update_rate>10</update_rate>
@@ -386,10 +386,10 @@
             <max_angle>3.14159</max_angle>
           </horizontal>
           <vertical>
-            <samples>16</samples>
+            <samples>32</samples>
             <resolution>1</resolution>
-            <min_angle>-0.261799</min_angle>
-            <max_angle>0.261799</max_angle>
+            <min_angle>-0.523599</min_angle>
+            <max_angle>0.523599</max_angle>
           </vertical>
         </scan>
         <range>
