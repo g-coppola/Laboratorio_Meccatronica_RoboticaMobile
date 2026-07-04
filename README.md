@@ -95,12 +95,12 @@ source install/setup.bash
 
 ### Start Simulation (Gazebo + x500 Drone)
 ```bash
-ros2 launch drone_main start.launch.py
+ros2 launch drone_main start_simulation.launch.py
 ```
 
 ### Start SLAM (RTAB-Map)
 ```bash
-ros2 launch drone_slam start.launch.py
+ros2 launch drone_slam start_rtabmap.launch.py
 ```
 
 ### Start 3D A* Planner
