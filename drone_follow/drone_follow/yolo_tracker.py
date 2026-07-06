@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped  # Importante per il planner
+from geometry_msgs.msg import PoseStamped 
 from cv_bridge import CvBridge
 
 from ultralytics import YOLO
@@ -27,7 +27,7 @@ class YoloTrackerNode(Node):
         self.curr_y = 0.0
         self.curr_yaw = 0.0
         
-        # Parametri Ottici (da URDF)
+        # Parametri Ottici
         self.image_width = 640.0
         self.image_height = 480.0
         self.fov_h = 1.50098  
@@ -38,10 +38,9 @@ class YoloTrackerNode(Node):
         self.follow_distance = 2.0     # Si ferma a 2 metri dalla persona
         self.target_altitude = 2.5     # Vola a 2.5 metri di quota fissa
         
-        # Rate Limiting
         self.last_goal_time = self.get_clock().now()
         
-        self.get_logger().info('🚀 YOLO Tracker (Headless) Avviato! Pronto all\'inseguimento.')
+        self.get_logger().info('YOLO Tracker Avviato! Pronto all\'inseguimento.')
 
     def quaternion_to_yaw(self, q):
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
@@ -77,8 +76,8 @@ class YoloTrackerNode(Node):
     def track_and_publish(self, bbox):
         now = self.get_clock().now()
         
-        # RATE LIMITING: Calcola e pubblica il target massimo 1 volta al secondo
-        if (now - self.last_goal_time).nanoseconds < 1e9:
+        # RATE LIMITING: Calcola e pubblica ogni 3 secondi
+        if (now - self.last_goal_time).nanoseconds < 3e9:
             return
 
         x1, y1, x2, y2 = bbox

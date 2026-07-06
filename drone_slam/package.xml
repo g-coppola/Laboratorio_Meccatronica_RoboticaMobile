@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>drone_slam</name>
-  <version>0.0.0</version>
-  <description>RTAB-Map SLAM configuration for 3D drone mapping</description>
+  <version>0.0.1</version>
+  <description>RTAB-Map SLAM configuration for 3D drone mapping and occupancy grid generation</description>
 
-  <maintainer email="g.coppola134@gmail.com">ubuntu</maintainer>
+  <maintainer email="g.coppola134@gmail.com">Giuseppe Coppola</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
@@ -13,15 +13,8 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
-  <exec_depend>rtabmap_ros</exec_depend>
-
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-
-  <exec_depend>tf2_ros</exec_depend>
-
-  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>rtabmap_slam</exec_depend>
+  <exec_depend>rtabmap_viz</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

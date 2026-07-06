@@ -120,21 +120,64 @@ def astar_3d(grid: VoxelGrid, start_cell, goal_cell, max_expansions: int = 20000
 
     return None
 
+def has_line_of_sight(grid, pA_world, pB_world):
+    """
+    Controlla se c'è una linea retta libera (senza ostacoli) tra pA e pB.
+    """
+    dx = pB_world[0] - pA_world[0]
+    dy = pB_world[1] - pA_world[1]
+    dz = pB_world[2] - pA_world[2]
+    
+    dist = math.sqrt(dx**2 + dy**2 + dz**2)
+    if dist == 0:
+        return True
 
-def simplify_path(path_world, min_dist: float):
-    if not path_world:
-        return []
+    # Campioniamo la linea con passi leggermente più piccoli della dimensione del voxel
+    # per assicurarci di non "saltare" nessuna cella della griglia.
+    step_size = grid.cell_size / 2.0
+    steps = int(math.ceil(dist / step_size))
+
+    for i in range(1, steps):
+        t = i / float(steps)
+        cx = pA_world[0] + t * dx
+        cy = pA_world[1] + t * dy
+        cz = pA_world[2] + t * dz
+
+        # Convertiamo la coordinata interpolata nei voxel della griglia
+        c_grid = grid.world_to_grid(cx, cy, cz)
+        
+        # Se anche solo un punto intermedio è occupato, non c'è linea di vista
+        if grid.is_occupied(*c_grid):
+            return False 
+
+    return True
+
+def simplify_path(grid, path_world):
+    """
+    Semplifica la traiettoria rimuovendo i waypoint ridondanti.
+    Mantiene solo i punti che rappresentano cambi di direzione (spigoli/angoli).
+    """
+    if len(path_world) <= 2:
+        return path_world
 
     simplified = [path_world[0]]
-    for p in path_world[1:]:
-        last = simplified[-1]
-        dist = math.sqrt(sum((p[d] - last[d]) ** 2 for d in range(3)))
-        if dist >= min_dist:
-            simplified.append(p)
-
-    if simplified[-1] != path_world[-1]:
-        simplified.append(path_world[-1])
-
+    last_added = path_world[0]
+    
+    # Iteriamo guardando sempre un passo in avanti
+    for i in range(1, len(path_world) - 1):
+        current_point = path_world[i]
+        next_point = path_world[i + 1]
+        
+        # Se NON c'è linea di vista dal punto salvato al *prossimo* punto,
+        # significa che il current_point è uno "spigolo" cruciale da salvare
+        # per non tagliare la curva.
+        if not has_line_of_sight(grid, last_added, next_point):
+            simplified.append(current_point)
+            last_added = current_point
+            
+    # L'ultimo punto (il goal) deve sempre esserci
+    simplified.append(path_world[-1])
+    
     return simplified
 
 
@@ -143,7 +186,7 @@ class AStarPlannerNode(Node):
         super().__init__('astar_planner_node')
 
         self.declare_parameter('cell_size', 0.25)          
-        self.declare_parameter('inflate_cells', 2)          
+        self.declare_parameter('inflate_cells', 3)          
         self.declare_parameter('waypoint_min_dist', 0.5)    
         self.declare_parameter('goal_reach_threshold', 0.3) 
 
@@ -219,7 +262,7 @@ class AStarPlannerNode(Node):
             goal_z = msg.pose.position.z
 
             self.active_goal = (goal_x, goal_y, goal_z)
-            self.final_goal_orientation = msg.pose.orientation  # Salva l'orientamento finale richiesto
+            self.final_goal_orientation = msg.pose.orientation 
 
             start_cell = self.grid.world_to_grid(self.curr_x, self.curr_y, self.curr_z)
             goal_cell = self.grid.world_to_grid(goal_x, goal_y, goal_z)
@@ -234,7 +277,7 @@ class AStarPlannerNode(Node):
                 return
 
             path_world = [self.grid.grid_to_world(*c) for c in path_cells]
-            self.path_waypoints = simplify_path(path_world, self.waypoint_min_dist)
+            self.path_waypoints = simplify_path(self.grid, path_world)
 
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
             

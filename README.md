@@ -27,11 +27,11 @@ Parallel perception pipeline:
 ```text
 RGB Camera
        ↓
-YOLOv8
+YOLOv8 (Human Detection)
        ↓
-Human Detection
+Coordinate Projection (Global Frame)
        ↓
-Target Projection (Debug Mode)
+Goal Published to A* Planner (/planner_goal)
 ```
 
 ## 1. Requirements
@@ -134,7 +134,7 @@ ros2 topic pub --once /planner_goal geometry_msgs/msg/PoseStamped "{
 ```
 
 Note: The orientation field uses **Quaternions**. To change the final facing direction, modify the `z` and `w` values:
-- 0° (Forward): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
+- 0° (Forward): `orientation: {x: 0.0, y: 0.0, z: 0.'0', w: 1.0}`
 - 90° (Left): `orientation: {x: 0.0, y: 0.0, z: 0.707, w: 0.707}`
 - 180° (Backward): `orientation: {x: 0.0, y: 0.0, z: 1.0, w: 0.0}`
 - -90°/270° (Right): `orientation: {x: 0.0, y: 0.0, z: -0.707, w: 0.707}`

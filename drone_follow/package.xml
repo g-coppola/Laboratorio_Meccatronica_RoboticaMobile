@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>drone_follow</name>
-  <version>0.0.0</version>
-  <description>Vision-based tracking + A* planning fusion node</description>
+  <version>0.0.1</version>
+  <description>Vision-based tracking and A* planning fusion node for human following</description>
 
-  <maintainer email="g.coppola134@gmail.com">ubuntu</maintainer>
+  <maintainer email="g.coppola134@gmail.com">Giuseppe Coppola</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
@@ -17,8 +17,8 @@
   <exec_depend>nav_msgs</exec_depend>
 
   <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
   <exec_depend>sensor_msgs_py</exec_depend>
-
   <exec_depend>python3-pip</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
