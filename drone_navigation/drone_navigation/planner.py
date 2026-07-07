@@ -121,27 +121,76 @@ def astar_3d(grid: VoxelGrid, start_cell, goal_cell, max_expansions: int = 20000
     return None
 
 def has_line_of_sight(grid, pA_world, pB_world):
-    dx = pB_world[0] - pA_world[0]
-    dy = pB_world[1] - pA_world[1]
-    dz = pB_world[2] - pA_world[2]
-    
-    dist = math.sqrt(dx**2 + dy**2 + dz**2)
-    if dist == 0:
-        return True
+    """
+    Controlla la linea di vista usando l'algoritmo di Bresenham 3D.
+    Molto più veloce e matematicamente sicuro per le griglie voxel.
+    """
+    # 1. Converti subito i punti dal mondo reale agli indici della griglia
+    x1, y1, z1 = grid.world_to_grid(*pA_world)
+    x2, y2, z2 = grid.world_to_grid(*pB_world)
 
-    step_size = grid.cell_size / 2.0
-    steps = int(math.ceil(dist / step_size))
+    # 2. Calcola le distanze assolute tra le celle
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    dz = abs(z2 - z1)
 
-    for i in range(1, steps):
-        t = i / float(steps)
-        cx = pA_world[0] + t * dx
-        cy = pA_world[1] + t * dy
-        cz = pA_world[2] + t * dz
+    # 3. Determina la direzione del passo (+1 o -1) per ogni asse
+    xs = 1 if x2 > x1 else -1
+    ys = 1 if y2 > y1 else -1
+    zs = 1 if z2 > z1 else -1
 
-        c_grid = grid.world_to_grid(cx, cy, cz)
-        
-        if grid.is_occupied(*c_grid):
-            return False 
+    # Inizializza il punto di controllo corrente
+    cx, cy, cz = x1, y1, z1
+
+    # 4. Attraversamento guidato dall'asse con lo spostamento maggiore (per evitare buchi)
+    if dx >= dy and dx >= dz:
+        p1 = 2 * dy - dx
+        p2 = 2 * dz - dx
+        while cx != x2:
+            if grid.is_occupied(cx, cy, cz): return False
+            cx += xs
+            if p1 >= 0:
+                cy += ys
+                p1 -= 2 * dx
+            if p2 >= 0:
+                cz += zs
+                p2 -= 2 * dx
+            p1 += 2 * dy
+            p2 += 2 * dz
+            
+    elif dy >= dx and dy >= dz:
+        p1 = 2 * dx - dy
+        p2 = 2 * dz - dy
+        while cy != y2:
+            if grid.is_occupied(cx, cy, cz): return False
+            cy += ys
+            if p1 >= 0:
+                cx += xs
+                p1 -= 2 * dy
+            if p2 >= 0:
+                cz += zs
+                p2 -= 2 * dy
+            p1 += 2 * dx
+            p2 += 2 * dz
+            
+    else:
+        p1 = 2 * dy - dz
+        p2 = 2 * dx - dz
+        while cz != z2:
+            if grid.is_occupied(cx, cy, cz): return False
+            cz += zs
+            if p1 >= 0:
+                cy += ys
+                p1 -= 2 * dz
+            if p2 >= 0:
+                cx += xs
+                p2 -= 2 * dz
+            p1 += 2 * dy
+            p2 += 2 * dx
+
+    # 5. Controllo finale sull'ultimo voxel (il bersaglio)
+    if grid.is_occupied(x2, y2, z2):
+        return False
 
     return True
 
@@ -170,7 +219,7 @@ class AStarPlannerNode(Node):
         super().__init__('astar_planner_node')
 
         self.declare_parameter('cell_size', 0.25)          
-        self.declare_parameter('inflate_cells', 3)          
+        self.declare_parameter('inflate_cells', 4)          
         self.declare_parameter('waypoint_min_dist', 0.5)    
         self.declare_parameter('goal_reach_threshold', 0.3) 
 
@@ -266,6 +315,32 @@ class AStarPlannerNode(Node):
             self.path_waypoints = simplify_path(self.grid, path_world)
 
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
+            
+            # --- STAMPA DEI WAYPOINT CON X, Y, Z, YAW ---
+            self.get_logger().info('=== ELENCO WAYPOINT GENERATI ===')
+            for idx, wp in enumerate(self.path_waypoints):
+                # Se è l'ultimo waypoint, usiamo l'orientamento finale desiderato (se presente)
+                if idx == len(self.path_waypoints) - 1 and self.final_goal_orientation is not None:
+                    # Estraiamo lo yaw dai quaternioni della posa finale
+                    q = self.final_goal_orientation
+                    siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+                    cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+                    yaw = math.atan2(siny_cosp, cosy_cosp)
+                else:
+                    # Altrimenti calcoliamo lo yaw puntando al waypoint successivo
+                    if idx < len(self.path_waypoints) - 1:
+                        next_wp = self.path_waypoints[idx + 1]
+                        dx = next_wp[0] - wp[0]
+                        dy = next_wp[1] - wp[1]
+                        yaw = math.atan2(dy, dx)
+                    else:
+                        yaw = 0.0 # Valore di fallback se manca l'orientamento finale
+
+                # Stampa sul log di ROS 2 (visibile a terminale)
+                self.get_logger().info(
+                    f'WP {idx:02d} -> X: {wp[0]:.3f} | Y: {wp[1]:.3f} | Z: {wp[2]:.3f} | Yaw: {yaw:.3f} rad ({math.degrees(yaw):.1f}°)'
+                )
+            self.get_logger().info('================================')
             
             # Pubblicazione immediata appena calcolato
             self.publish_path_to_rviz()

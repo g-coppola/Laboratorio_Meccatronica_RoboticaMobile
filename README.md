@@ -105,7 +105,7 @@ ros2 launch drone_slam start_rtabmap.launch.py
 
 ### Start 3D A* Planner
 ```bash
-ros2 run drone_main planner.py --ros-args -p use_sim_time:=true
+ros2 run drone_navigation planner --ros-args -p use_sim_time:=true
 ```
 Note: Run the planner with `--ros-args -p use_sim_time:=true` to synchronize the node's clock with Gazebo. Without this parameter, RViz drops the trajectory messages due to a timestamp mismatch.
 
