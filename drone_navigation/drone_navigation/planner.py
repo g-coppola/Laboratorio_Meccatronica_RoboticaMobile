@@ -7,7 +7,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
@@ -121,9 +121,6 @@ def astar_3d(grid: VoxelGrid, start_cell, goal_cell, max_expansions: int = 20000
     return None
 
 def has_line_of_sight(grid, pA_world, pB_world):
-    """
-    Controlla se c'è una linea retta libera (senza ostacoli) tra pA e pB.
-    """
     dx = pB_world[0] - pA_world[0]
     dy = pB_world[1] - pA_world[1]
     dz = pB_world[2] - pA_world[2]
@@ -132,8 +129,6 @@ def has_line_of_sight(grid, pA_world, pB_world):
     if dist == 0:
         return True
 
-    # Campioniamo la linea con passi leggermente più piccoli della dimensione del voxel
-    # per assicurarci di non "saltare" nessuna cella della griglia.
     step_size = grid.cell_size / 2.0
     steps = int(math.ceil(dist / step_size))
 
@@ -143,39 +138,28 @@ def has_line_of_sight(grid, pA_world, pB_world):
         cy = pA_world[1] + t * dy
         cz = pA_world[2] + t * dz
 
-        # Convertiamo la coordinata interpolata nei voxel della griglia
         c_grid = grid.world_to_grid(cx, cy, cz)
         
-        # Se anche solo un punto intermedio è occupato, non c'è linea di vista
         if grid.is_occupied(*c_grid):
             return False 
 
     return True
 
 def simplify_path(grid, path_world):
-    """
-    Semplifica la traiettoria rimuovendo i waypoint ridondanti.
-    Mantiene solo i punti che rappresentano cambi di direzione (spigoli/angoli).
-    """
     if len(path_world) <= 2:
         return path_world
 
     simplified = [path_world[0]]
     last_added = path_world[0]
     
-    # Iteriamo guardando sempre un passo in avanti
     for i in range(1, len(path_world) - 1):
         current_point = path_world[i]
         next_point = path_world[i + 1]
         
-        # Se NON c'è linea di vista dal punto salvato al *prossimo* punto,
-        # significa che il current_point è uno "spigolo" cruciale da salvare
-        # per non tagliare la curva.
         if not has_line_of_sight(grid, last_added, next_point):
             simplified.append(current_point)
             last_added = current_point
             
-    # L'ultimo punto (il goal) deve sempre esserci
     simplified.append(path_world[-1])
     
     return simplified
@@ -204,9 +188,8 @@ class AStarPlannerNode(Node):
 
         self.path_waypoints = []   
         self.active_goal = None    
-        self.final_goal_orientation = None  # Memorizza l'orientamento finale desiderato
+        self.final_goal_orientation = None  
         
-        # --- PROTEZIONE COMPUTER ---
         self.is_planning = False
 
         qos_sensor = QoSProfile(
@@ -226,6 +209,10 @@ class AStarPlannerNode(Node):
         self.create_subscription(PoseStamped, '/planner_goal', self.goal_callback, 10)
 
         self.goal_pose_pub = self.create_publisher(Odometry, '/goal_pose', 10)
+        
+        # --- TELEMETRIA RVIZ: PATH PUBLISHER ---
+        self.path_pub = self.create_publisher(Path, '/planner/path', 10)
+
         self.create_timer(0.2, self.control_loop)
 
         self.get_logger().info('A* 3D planner avviato (Tolleranza Danni Attiva!). In attesa di bersagli...')
@@ -247,7 +234,6 @@ class AStarPlannerNode(Node):
         if not self.have_odom:
             return
 
-        # --- PROTEZIONE THREAD (RACE CONDITION PREVENTION) ---
         if self.is_planning:
             self.get_logger().warn('A* sta ancora calcolando! Goal ignorato per salvare la CPU.')
             return
@@ -281,12 +267,18 @@ class AStarPlannerNode(Node):
 
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
             
+            # Pubblicazione immediata appena calcolato
+            self.publish_path_to_rviz()
+            
         finally:
             self.is_planning = False
 
     def control_loop(self):
         if not self.path_waypoints:
             return
+
+        # Pubblica continuamente la traiettoria residua a 5Hz
+        self.publish_path_to_rviz()
 
         target = self.path_waypoints[0]
         dist = math.sqrt(
@@ -313,12 +305,9 @@ class AStarPlannerNode(Node):
         msg.pose.pose.position.y = target[1]
         msg.pose.pose.position.z = target[2]
 
-        # --- GESTIONE DELLO YAW ---
-        # Se siamo all'ultimo waypoint della traiettoria, usa l'orientamento finale richiesto
         if len(self.path_waypoints) == 1 and self.final_goal_orientation is not None:
             msg.pose.pose.orientation = self.final_goal_orientation
         else:
-            # Altrimenti, fa guardare il drone verso il prossimo waypoint (tangente alla traiettoria)
             dx = target[0] - self.curr_x
             dy = target[1] - self.curr_y
             yaw_desiderato = math.atan2(dy, dx)
@@ -329,6 +318,26 @@ class AStarPlannerNode(Node):
             msg.pose.pose.orientation.w = math.cos(yaw_desiderato / 2.0)
 
         self.goal_pose_pub.publish(msg)
+
+    def publish_path_to_rviz(self):
+        if not self.path_waypoints:
+            return
+
+        msg = Path()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'odom'
+
+        for wp in self.path_waypoints:
+            pose = PoseStamped()
+            pose.header.stamp = msg.header.stamp
+            pose.header.frame_id = 'odom'
+            pose.pose.position.x = float(wp[0])
+            pose.pose.position.y = float(wp[1])
+            pose.pose.position.z = float(wp[2])
+            pose.pose.orientation.w = 1.0
+            msg.poses.append(pose)
+
+        self.path_pub.publish(msg)
 
 
 def main(args=None):

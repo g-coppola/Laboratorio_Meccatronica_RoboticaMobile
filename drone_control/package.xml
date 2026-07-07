@@ -5,7 +5,7 @@
   <version>0.0.1</version>
   <description>Autonomous flight controller for X500 drone, including PID position control and feedforward trajectory tracking.</description>
 
-  <maintainer email="[la-tua-email@email.com]">Giuseppe Coppola</maintainer>
+  <maintainer email="g.coppola134@gmail.com">Giuseppe Coppola</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

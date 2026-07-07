@@ -23,7 +23,6 @@ setup(
             'hovering = drone_control.hovering:main',
             'full_control = drone_control.full_control:main',
             'control_2d = drone_control.control_2d:main',
-            'lqr_control = drone_control.lqr_control:main',
         ],
     },
 )
