@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'planner = drone_navigation.planner:main',
             'plotter = drone_navigation.plotter:main',
+            'trajectory_generator = drone_navigation.trajectory_generator:main',
         ],
     },
 )

@@ -257,7 +257,13 @@ class AStarPlannerNode(Node):
         self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         self.create_subscription(PoseStamped, '/planner_goal', self.goal_callback, 10)
 
-        self.goal_pose_pub = self.create_publisher(Odometry, '/goal_pose', 10)
+        # NOTA: la pubblicazione diretta su /goal_pose e' stata rimossa da
+        # qui. Ora e' trajectory_generator.py (nuovo nodo) che si iscrive a
+        # /planner/path qui sotto e pubblica lui i setpoint su /goal_pose,
+        # con posizione E velocita' continue nel tempo invece di un singolo
+        # waypoint statico alla volta. Se trajectory_generator.py non e' in
+        # esecuzione, nessuno pubblica piu' su /goal_pose: ricordati di
+        # avviarlo insieme a questo nodo.
         
         # --- TELEMETRIA RVIZ: PATH PUBLISHER ---
         self.path_pub = self.create_publisher(Path, '/planner/path', 10)
@@ -312,7 +318,9 @@ class AStarPlannerNode(Node):
                 return
 
             path_world = [self.grid.grid_to_world(*c) for c in path_cells]
-            self.path_waypoints = simplify_path(self.grid, path_world)
+            # self.path_waypoints = simplify_path(self.grid, path_world)
+            self.path_waypoints = path_world
+
 
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
             
@@ -336,11 +344,6 @@ class AStarPlannerNode(Node):
                     else:
                         yaw = 0.0 # Valore di fallback se manca l'orientamento finale
 
-                # Stampa sul log di ROS 2 (visibile a terminale)
-                self.get_logger().info(
-                    f'WP {idx:02d} -> X: {wp[0]:.3f} | Y: {wp[1]:.3f} | Z: {wp[2]:.3f} | Yaw: {yaw:.3f} rad ({math.degrees(yaw):.1f}°)'
-                )
-            self.get_logger().info('================================')
             
             # Pubblicazione immediata appena calcolato
             self.publish_path_to_rviz()
@@ -352,47 +355,12 @@ class AStarPlannerNode(Node):
         if not self.path_waypoints:
             return
 
-        # Pubblica continuamente la traiettoria residua a 5Hz
+        # Ripubblica il path per RViz a 5Hz. L'inseguimento vero e proprio
+        # (waypoint-by-waypoint, con pop del target raggiunto) non avviene
+        # PIU' qui: se ne occupa trajectory_generator.py, che trasforma
+        # questi stessi waypoint in una traiettoria continua nel tempo e
+        # pubblica lui su /goal_pose.
         self.publish_path_to_rviz()
-
-        target = self.path_waypoints[0]
-        dist = math.sqrt(
-            (target[0] - self.curr_x) ** 2
-            + (target[1] - self.curr_y) ** 2
-            + (target[2] - self.curr_z) ** 2
-        )
-
-        if dist <= self.goal_reach_threshold:
-            self.path_waypoints.pop(0)
-            if not self.path_waypoints:
-                self.get_logger().info('Goal finale raggiunto.')
-                return
-            target = self.path_waypoints[0]
-
-        self.publish_goal_pose(target)
-
-    def publish_goal_pose(self, target):
-        msg = Odometry()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'odom'
-
-        msg.pose.pose.position.x = target[0]
-        msg.pose.pose.position.y = target[1]
-        msg.pose.pose.position.z = target[2]
-
-        if len(self.path_waypoints) == 1 and self.final_goal_orientation is not None:
-            msg.pose.pose.orientation = self.final_goal_orientation
-        else:
-            dx = target[0] - self.curr_x
-            dy = target[1] - self.curr_y
-            yaw_desiderato = math.atan2(dy, dx)
-
-            msg.pose.pose.orientation.x = 0.0
-            msg.pose.pose.orientation.y = 0.0
-            msg.pose.pose.orientation.z = math.sin(yaw_desiderato / 2.0)
-            msg.pose.pose.orientation.w = math.cos(yaw_desiderato / 2.0)
-
-        self.goal_pose_pub.publish(msg)
 
     def publish_path_to_rviz(self):
         if not self.path_waypoints:
@@ -402,14 +370,21 @@ class AStarPlannerNode(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'odom'
 
-        for wp in self.path_waypoints:
+        for i, wp in enumerate(self.path_waypoints):
             pose = PoseStamped()
             pose.header.stamp = msg.header.stamp
             pose.header.frame_id = 'odom'
             pose.pose.position.x = float(wp[0])
             pose.pose.position.y = float(wp[1])
             pose.pose.position.z = float(wp[2])
-            pose.pose.orientation.w = 1.0
+            
+            # Se è l'ultimo waypoint e abbiamo un orientamento salvato, usalo.
+            if i == len(self.path_waypoints) - 1 and self.final_goal_orientation is not None:
+                pose.pose.orientation = self.final_goal_orientation
+            else:
+                # Altrimenti, lascia l'orientamento neutro
+                pose.pose.orientation.w = 1.0
+                
             msg.poses.append(pose)
 
         self.path_pub.publish(msg)
