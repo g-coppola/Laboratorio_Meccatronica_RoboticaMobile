@@ -73,9 +73,9 @@ sudo apt install ros-humble-octomap-msgs
 sudo apt install ros-humble-octomap-rviz-plugins
 ```
 
-## 5. Python dependencies (AI/Vision)
+## 5. Python dependencies (AI/Vision/Visualization)
 ```bash
-pip3 install ultralytics
+pip3 install ultralytics matplotlib
 ```
 
 Compatibily note (IMPORTANT for ROS 2):
@@ -157,7 +157,17 @@ ros2 launch drone_main display.launch.py
 ```
 **Recommended to launch after starting Gazebo + SLAM for full visualization.**
 
-For visualization purposes, two additional nodes are available.
+For visualization purposes, additional nodes are available.
+
+### 3D Waypoint Plotter (Path Visualization)
+
+```bash
+ros2 run drone_navigation plotter
+```
+
+**Recommended to launch after starting the 3D A Planner.**
+
+It automatically pops up an interactive 3D plot every time a new navigation goal is sent. It visualizes the computed trajectory waypoints, start/end positions, and the expected yaw orientation for each segment.
 
 ### Display the RGB Camera
 
