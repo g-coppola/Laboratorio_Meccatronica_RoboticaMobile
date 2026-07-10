@@ -100,26 +100,16 @@ ros2 launch drone_main start_simulation.launch.py
 
 ![Gazebo](imgs/gazebo.png)
 
-### Start SLAM (RTAB-Map)
+### Start RTAB-Map
 ```bash
 ros2 launch drone_slam start_rtabmap.launch.py
 ```
 
-### Start 3D A* Planner
+### Start Full Navigation Stack 
 ```bash
-ros2 run drone_navigation planner --ros-args -p use_sim_time:=true
+ros2 launch drone_navigation start_nav.launch.py
 ```
-Note: Run the planner with `--ros-args -p use_sim_time:=true` to synchronize the node's clock with Gazebo. Without this parameter, RViz drops the trajectory messages due to a timestamp mismatch.
-
-### Start Trajectory Generator
-```bash
-ros2 run drone_navigation trajectory_generator
-```
-
-### Start Flight Controller
-```bash
-ros2 run drone_control full_control
-```
+It includes `PID Controller`, `A* Planner 3D` and `Trajectory Generator`
 
 ## 7. Usage
 
@@ -151,7 +141,7 @@ Note: The orientation field uses **Quaternions**. To change the final facing dir
 To enable vision-based human detection:
 
 ```bash
-ros2 run drone_follow yolo_tracker
+ros2 run drone_follow yolo_tracker --ros-args -p use_sim_time:=true
 ```
 
 ## 8. Visualization and Debug Tools
@@ -176,9 +166,9 @@ ros2 run drone_navigation plotter
 
 **Recommended to launch after starting the 3D A Planner.**
 
-It automatically pops up an interactive 3D plot every time a new navigation goal is sent. It visualizes the computed trajectory waypoints, start/end positions, and the expected yaw orientation for each segment.
+Once the drone reaches the navigation goal, a 3D plot is automatically displayed, comparing the planned trajectory with the actual flight trajectory.
 
-![3dplot](imgs/3dpath.png)
+![3dplot](imgs/3dpath.jpeg)
 
 ### Display the RGB Camera
 

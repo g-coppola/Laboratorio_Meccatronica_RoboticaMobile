@@ -112,10 +112,14 @@ class YoloTrackerNode(Node):
         goal_msg.pose.position.y = target_y
         goal_msg.pose.position.z = self.target_altitude 
         
+        # 5. ASSEGNAZIONE ORIENTAMENTO (Quaternione calcolato dallo Yaw)
+        goal_msg.pose.orientation.z = math.sin(global_target_yaw / 2.0)
+        goal_msg.pose.orientation.w = math.cos(global_target_yaw / 2.0)
+        
         self.goal_pub.publish(goal_msg)
         self.last_goal_time = now
         
-        self.get_logger().info(f"INSEGUIMENTO ATTIVO -> Target inviato al Planner A* (X:{target_x:.2f}, Y:{target_y:.2f}, Z:{self.target_altitude})")
+        self.get_logger().info(f"INSEGUIMENTO ATTIVO -> Target inviato (X:{target_x:.2f}, Y:{target_y:.2f}, Z:{self.target_altitude}, Yaw:{math.degrees(global_target_yaw):.1f}°)")
 
 def main(args=None):
     rclpy.init(args=args)

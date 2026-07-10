@@ -61,7 +61,7 @@ class FullDroneController(Node):
         self.target_pitch = 0.0
         
         # Guadagno del Feedforward (Regolabile)
-        self.k_ff_xy = 0.15
+        self.k_ff_xy = 0.3
         # NUOVO: feedforward anche sulla quota, stessa logica di k_ff_xy.
         # Prima non serviva a nulla perche' target_vz era sempre 0 (il
         # planner non mandava velocita'); con trajectory_generator.py
@@ -69,16 +69,16 @@ class FullDroneController(Node):
         # questo guadagno lo sfrutta. Valore di partenza da tarare in sim:
         # se la quota "insegue in ritardo" durante salite/discese, aumenta;
         # se oscilla/overshoot, riduci.
-        self.k_ff_z = 0.5
+        self.k_ff_z = 0.7
         
         # --- PID LOOP ESTERNO (Posizione X, Y) ---
         self.pid_x = PIDController(kp=0.15, ki=0.0, kd=0.05, min_out=-0.25, max_out=0.25)
         self.pid_y = PIDController(kp=0.15, ki=0.0, kd=0.05, min_out=-0.25, max_out=0.25)
 
         # --- PID LOOP INTERNO (Altitudine e Assetto) ---
-        self.pid_alt   = PIDController(kp=12.0, ki=0.0, kd=25.0, min_out=-150.0, max_out=150.0)
-        self.pid_roll  = PIDController(kp=35.0, ki=0.0, kd=8.0,  min_out=-80.0,  max_out=80.0)
-        self.pid_pitch = PIDController(kp=35.0, ki=0.0, kd=8.0,  min_out=-80.0,  max_out=80.0)
+        self.pid_alt   = PIDController(kp=12.0, ki=0.01, kd=35.0, min_out=-150.0, max_out=150.0)
+        self.pid_roll  = PIDController(kp=35.0, ki=0.01, kd=8.0,  min_out=-80.0,  max_out=80.0)
+        self.pid_pitch = PIDController(kp=35.0, ki=0.01, kd=8.0,  min_out=-80.0,  max_out=80.0)
         self.pid_yaw   = PIDController(kp=10.0, ki=0.0, kd=2.0,  min_out=-50.0,  max_out=50.0)
         
         self.last_time = 0.0
