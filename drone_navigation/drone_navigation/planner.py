@@ -1,6 +1,7 @@
 import math
 import heapq
 import threading
+import time
 
 import numpy as np
 import rclpy
@@ -214,6 +215,67 @@ def simplify_path(grid, path_world):
     return simplified
 
 
+def enforce_min_spacing(path_world, min_dist):
+    """
+    Rimuove waypoint intermedi troppo ravvicinati (es. subito dopo lo start,
+    dove la cella di partenza puo' essere a pochi cm dal primo waypoint
+    della griglia). Punti troppo vicini non aggiungono forma alla
+    traiettoria: costringono solo la spline cubica a curvare bruscamente
+    su una distanza minima, generando micro-oscillazioni.
+    Il primo e l'ultimo punto (start reale e goal) sono sempre mantenuti.
+    """
+    if len(path_world) <= 2:
+        return path_world
+
+    filtered = [path_world[0]]
+    for p in path_world[1:-1]:
+        if math.dist(p, filtered[-1]) >= min_dist:
+            filtered.append(p)
+    filtered.append(path_world[-1])
+
+    return filtered
+
+
+def merge_collinear(path_world, angle_threshold_deg=6.0):
+    """
+    Seconda passata di pulizia dopo simplify_path(): la line-of-sight
+    simplification e' greedy e puo' lasciare un waypoint intermedio anche
+    quando i due segmenti adiacenti sono quasi perfettamente allineati
+    (differenza di direzione minima). Rimuoverlo non cambia la forma del
+    percorso ma toglie un punto di controllo inutile alla spline, quindi
+    una curva piu' pulita.
+    """
+    if len(path_world) <= 2:
+        return path_world
+
+    cos_threshold = math.cos(math.radians(angle_threshold_deg))
+
+    merged = [path_world[0]]
+    for i in range(1, len(path_world) - 1):
+        prev_p = merged[-1]
+        curr_p = path_world[i]
+        next_p = path_world[i + 1]
+
+        v1 = tuple(a - b for a, b in zip(curr_p, prev_p))
+        v2 = tuple(a - b for a, b in zip(next_p, curr_p))
+
+        n1 = math.sqrt(sum(c * c for c in v1))
+        n2 = math.sqrt(sum(c * c for c in v2))
+
+        if n1 < 1e-6 or n2 < 1e-6:
+            continue  # punto duplicato/degenere, scartalo
+
+        cos_angle = sum(a * b for a, b in zip(v1, v2)) / (n1 * n2)
+
+        # Se i due segmenti sono quasi collineari, curr_p non serve: si
+        # salta e si valuta il prossimo punto rispetto a prev_p invariato.
+        if cos_angle < cos_threshold:
+            merged.append(curr_p)
+
+    merged.append(path_world[-1])
+    return merged
+
+
 class AStarPlannerNode(Node):
     def __init__(self):
         super().__init__('astar_planner_node')
@@ -286,11 +348,31 @@ class AStarPlannerNode(Node):
         self.have_odom = True
 
     def goal_callback(self, msg: PoseStamped):
+        try:
+            self._handle_goal(msg)
+        except Exception as ex:
+            # goal_callback gira nel thread principale dell'executor: se
+            # solleva un'eccezione non catturata, rclpy la propaga fino a
+            # spin() e il nodo (quindi il planner) muore. Con un tracker
+            # che pubblica di continuo non possiamo permettercelo: logghiamo
+            # e scartiamo il singolo goal.
+            self.is_planning = False
+            self.get_logger().error(f'Errore nel gestire /planner_goal, goal scartato: {ex}', throttle_duration_sec=2.0)
+
+    def _handle_goal(self, msg: PoseStamped):
         if not self.have_odom:
             return
 
         if self.is_planning:
             self.get_logger().warn('A* sta ancora calcolando! Goal ignorato per salvare la CPU.')
+            return
+
+        gx = msg.pose.position.x
+        gy = msg.pose.position.y
+        gz = msg.pose.position.z
+
+        if not all(math.isfinite(v) for v in (gx, gy, gz)):
+            self.get_logger().warn('Goal con coordinate non finite, scartato.', throttle_duration_sec=2.0)
             return
 
         self.is_planning = True
@@ -318,7 +400,25 @@ class AStarPlannerNode(Node):
                 return
 
             path_world = [self.grid.grid_to_world(*c) for c in path_cells]
-            # self.path_waypoints = simplify_path(self.grid, path_world)
+
+            # --- Pipeline di riduzione waypoint (chiave per una traiettoria
+            # fluida): l'A* a 26 connessioni produce un percorso "a scalino"
+            # con un waypoint ogni cell_size (0.25m). Se lo passassimo cosi'
+            # com'e' a trajectory_generator, la spline cubica CI PASSA
+            # ESATTAMENTE PER OGNI PUNTO (e' interpolante, non un fit ai
+            # minimi quadrati) e finisce per seguire lo zigzag invece di
+            # tagliare dritto -> traiettoria "nervosa".
+            #   1) simplify_path: string-pulling a vista (Bresenham 3D),
+            #      tiene solo i waypoint dove serve davvero girare.
+            #   2) enforce_min_spacing: toglie eventuali punti rimasti
+            #      troppo ravvicinati (es. vicino allo start).
+            #   3) merge_collinear: seconda pulizia, toglie waypoint che
+            #      simplify_path ha lasciato ma sono quasi in linea retta
+            #      con i vicini.
+            path_world = simplify_path(self.grid, path_world)
+            path_world = enforce_min_spacing(path_world, self.waypoint_min_dist)
+            path_world = merge_collinear(path_world)
+
             self.path_waypoints = path_world
 
 
@@ -347,7 +447,15 @@ class AStarPlannerNode(Node):
             
             # Pubblicazione immediata appena calcolato
             self.publish_path_to_rviz()
-            
+
+        except Exception as ex:
+            # Un'eccezione qui non uccide il processo (siamo in un thread
+            # separato), ma senza questo except finirebbe solo su stderr
+            # come traceback grezzo, senza passare dai log ROS, ed e'
+            # facile non accorgersene mentre il tracker continua a mandare
+            # goal. Meglio un log esplicito + path svuotato.
+            self.get_logger().error(f'Errore durante il calcolo del percorso: {ex}')
+            self.path_waypoints = []
         finally:
             self.is_planning = False
 

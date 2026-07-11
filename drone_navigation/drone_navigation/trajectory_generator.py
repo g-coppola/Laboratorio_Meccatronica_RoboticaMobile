@@ -87,7 +87,7 @@ class TrajectoryGenerator(Node):
     def __init__(self):
         super().__init__('trajectory_generator')
 
-        self.declare_parameter('cruise_speed', 0.45)       # m/s, velocita' media lungo i segmenti
+        self.declare_parameter('cruise_speed', 0.2)       # m/s, velocita' media lungo i segmenti
         self.declare_parameter('update_rate', 30.0)       # Hz, frequenza di pubblicazione su /goal_pose
         self.declare_parameter('min_segment_time', 0.4)   # s, tempo minimo per segmento
 

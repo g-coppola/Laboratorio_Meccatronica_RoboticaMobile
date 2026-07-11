@@ -336,7 +336,7 @@
     <sensor name="camera" type="camera">
       <gz_frame_id>camera_optical_link</gz_frame_id>
       <always_on>true</always_on>
-      <update_rate>15</update_rate> 
+      <update_rate>10</update_rate> 
       <visualize>true</visualize>
       <topic>camera</topic>
       <camera>
@@ -400,13 +400,6 @@
       </ray>
       <always_on>true</always_on>
       <visualize>true</visualize>
-    </sensor>
-  </gazebo>
-
-  <gazebo reference="base_link">
-    <sensor name="imu_sensor" type="imu">
-      <always_on>1</always_on>
-      <update_rate>100</update_rate>
     </sensor>
   </gazebo>
 
