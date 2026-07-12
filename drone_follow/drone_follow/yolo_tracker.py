@@ -38,6 +38,12 @@ class YoloTrackerNode(Node):
         self.goal_reach_threshold = 0.8  
         self.min_tracking_distance = 5.0 
         
+        # NUOVO: Distanza di sicurezza da mantenere dalla persona (in metri)
+        self.standoff_distance = 1.5
+        
+        # Variabile per memorizzare l'ultima misurazione fatta
+        self.last_detection = None
+        
         # --- Parametri Telecamera ---
         self.image_w = 640
         self.image_h = 480
@@ -66,6 +72,21 @@ class YoloTrackerNode(Node):
                 self.get_logger().info('Goal raggiunto! Riprendo la scansione visiva.')
                 self.state = "SEARCHING"
                 self.active_goal = None
+                
+                # Se passiamo in SEARCHING, controlliamo se c'è un'ultima misurazione nota
+                if self.last_detection is not None:
+                    # Calcoliamo la distanza tra noi e l'ultima misurazione calcolata (che già include lo standoff)
+                    dist_to_last = math.hypot(self.curr_x - self.last_detection[0], self.curr_y - self.last_detection[1])
+                    
+                    # Se l'ultima misurazione è oltre la soglia di arrivo, la persona si è mossa
+                    if dist_to_last > self.goal_reach_threshold:
+                        self.get_logger().info('Inoltro l\'ultima posizione nota (con offset) della persona al planner.')
+                        self.active_goal = (self.last_detection[0], self.last_detection[1])
+                        self.send_goal(*self.last_detection)
+                        self.state = "NAVIGATING"
+                    else:
+                        # Se siamo già vicini all'ultima misurazione (persona ferma), puliamo la variabile
+                        self.last_detection = None
 
     def image_callback(self, msg: Image):
         if not self.have_odom:
@@ -78,40 +99,46 @@ class YoloTrackerNode(Node):
         cv2.imshow('YOLO Tracker', annotated_frame)
         cv2.waitKey(1)
 
-        if self.state == "NAVIGATING":
-            return
-
-        # 3. Estrazione diretta: essendoci una sola persona, prendiamo la prima rilevata
+        # Estrazione diretta: essendoci una sola persona, prendiamo la prima rilevata
         if len(results[0].boxes) > 0:
             box = results[0].boxes[0]
             x_c, y_c, w, h = box.xywh[0].tolist()
             
-            # 4. Stima della distanza
+            # Stima della distanza
             real_h = 1.7 
             dist = (real_h * self.fx) / h
 
             if dist > self.min_tracking_distance:
-                # 5. Calcolo della direzione
+                # Calcolo della direzione
                 angle_offset = -math.atan2(x_c - (self.image_w / 2.0), self.fx)
                 target_yaw = self.curr_yaw + angle_offset
                 
-                # 6. Proiezione nella mappa
-                target_x = self.curr_x + dist * math.cos(target_yaw)
-                target_y = self.curr_y + dist * math.sin(target_yaw)
+                # NUOVO: Sottraiamo la distanza di sicurezza per non finire addosso alla persona.
+                # Se la persona per caso ci viene incontro a meno della standoff_distance, 
+                # target_dist diventa negativo e il drone arretrerà naturalmente mantenendo lo yaw!
+                target_dist = dist - self.standoff_distance
+                
+                # Proiezione nella mappa fermandosi 'standoff_distance' prima del target
+                target_x = self.curr_x + target_dist * math.cos(target_yaw)
+                target_y = self.curr_y + target_dist * math.sin(target_yaw)
                 
                 # Quota fissa di sicurezza a 3.2 metri
                 target_z = 3.2 
 
-                self.get_logger().info(
-                    f'Persona rilevata a {dist:.2f}m. '
-                    f'Invio goal a X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target_z:.2f} con Yaw:{target_yaw:.2f} rad'
-                )
-                
-                self.active_goal = (target_x, target_y)
-                self.state = "NAVIGATING"
-                
-                # Passiamo anche il target_yaw calcolato
-                self.send_goal(target_x, target_y, target_z, target_yaw)
+                # Aggiorniamo SEMPRE l'ultima misurazione rilevata, a prescindere dallo stato
+                self.last_detection = (target_x, target_y, target_z, target_yaw)
+
+                # Se il drone è fermo e sta cercando, avvia la navigazione immediatamente
+                if self.state == "SEARCHING":
+                    self.get_logger().info(
+                        f'Persona rilevata a {dist:.2f}m. '
+                        f'Invio goal a X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target_z:.2f} '
+                        f'(Distanza mantenuta: {self.standoff_distance}m) con Yaw:{target_yaw:.2f} rad'
+                    )
+                    
+                    self.active_goal = (target_x, target_y)
+                    self.state = "NAVIGATING"
+                    self.send_goal(target_x, target_y, target_z, target_yaw)
 
     def send_goal(self, x, y, z, target_yaw):
         msg = PoseStamped()
@@ -121,7 +148,7 @@ class YoloTrackerNode(Node):
         msg.pose.position.y = float(y)
         msg.pose.position.z = float(z)
         
-        # 7. Conversione dell'angolo target_yaw in quaternione 
+        # Conversione dell'angolo target_yaw in quaternione 
         # Questo forza il drone a guardare verso la persona quando arriva
         msg.pose.orientation.x = 0.0
         msg.pose.orientation.y = 0.0

@@ -149,7 +149,7 @@ def main(args=None):
                     
                     if len(pts) >= 2:
                         # Time parameters to reconstruct the theoretical spline calculated by the generator
-                        cruise_speed = 0.2
+                        cruise_speed = 0.3
                         min_segment_time = 0.4
                         
                         seg_lengths = np.linalg.norm(np.diff(pts, axis=0), axis=1)

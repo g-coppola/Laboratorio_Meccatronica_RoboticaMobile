@@ -51,7 +51,7 @@ class StandaloneDebugTracker(Node):
         self.ax.set_aspect('equal') # Mantiene la proporzione 1:1 reale dei metri a schermo
         
         # Disegna una linea rossa con i marker
-        self.person_plot, = self.ax.plot([], [], 'ro-', markersize=5, alpha=0.7, label='Persona')
+        self.person_plot, = self.ax.plot([], [], 'ro', markersize=5, alpha=0.7, label='Persona')
         self.ax.legend()
         
         self.create_timer(0.1, self.update_plot)
