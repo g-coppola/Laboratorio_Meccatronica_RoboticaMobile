@@ -50,7 +50,7 @@ class FullDroneController(Node):
         # --- Setpoint (Coordinate e Velocità Bersaglio) ---
         self.target_x = 0.0
         self.target_y = 0.0
-        self.target_z = 2.0      
+        self.target_z = 3.0      
         self.target_yaw = 1.57
         
         self.target_vx = 0.0

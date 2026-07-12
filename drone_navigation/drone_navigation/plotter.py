@@ -21,7 +21,7 @@ class WaypointPlotterNode(Node):
             10
         )
         
-        # NEW: Subscription to odometry to monitor real-time position
+        # Subscription to odometry to monitor real-time position
         self.odom_sub = self.create_subscription(
             Odometry,
             '/odom',
@@ -30,15 +30,16 @@ class WaypointPlotterNode(Node):
         )
         
         self.current_path = []
-        self.real_trajectory_history = []  # Stores the real trajectory flown by the drone
+        self.real_trajectory_history = []  # Stores the real trajectory flown by the drone (x, y, z, yaw)
         self.new_path_received = False
         self.plot_triggered = False        # Flag to avoid continuously reopening the plot after arrival
         self.lock = threading.Lock()
         
-        # Current drone coordinates
+        # Current drone coordinates and yaw
         self.curr_x = 0.0
         self.curr_y = 0.0
         self.curr_z = 0.0
+        self.curr_yaw = 0.0
         
         self.get_logger().info("3D Trajectory Plotter started! The plot will only be shown upon reaching the goal.")
 
@@ -47,15 +48,23 @@ class WaypointPlotterNode(Node):
         self.curr_y = msg.pose.pose.position.y
         self.curr_z = msg.pose.pose.position.z
         
+        # Estrazione dello Yaw reale dai quaternioni
+        q = msg.pose.pose.orientation
+        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+        self.curr_yaw = math.atan2(siny_cosp, cosy_cosp)
+        
         with self.lock:
             # Save a point of the real trajectory every 5 cm to avoid overloading memory
             if not self.real_trajectory_history:
-                self.real_trajectory_history.append((self.curr_x, self.curr_y, self.curr_z))
+                # Aggiunto curr_yaw alla tupla
+                self.real_trajectory_history.append((self.curr_x, self.curr_y, self.curr_z, self.curr_yaw))
             else:
                 last_pos = self.real_trajectory_history[-1]
                 dist = math.sqrt((self.curr_x - last_pos[0])**2 + (self.curr_y - last_pos[1])**2 + (self.curr_z - last_pos[2])**2)
                 if dist > 0.05:
-                    self.real_trajectory_history.append((self.curr_x, self.curr_y, self.curr_z))
+                    # Aggiunto curr_yaw alla tupla
+                    self.real_trajectory_history.append((self.curr_x, self.curr_y, self.curr_z, self.curr_yaw))
             
             # If a valid path exists and we haven't plotted this goal yet
             if self.current_path and not self.plot_triggered:
@@ -68,8 +77,8 @@ class WaypointPlotterNode(Node):
                     (self.curr_z - goal_wp[2])**2
                 )
                 
-                # Goal arrival threshold (e.g., 0.3 meters, matching the planner's goal_reach_threshold)
-                if dist_to_goal < 0.3:
+                # Goal arrival threshold (e.g., 0.08 meters, matching the planner's goal_reach_threshold)
+                if dist_to_goal < 0.08:
                     self.plot_triggered = True
                     self.new_path_received = True  # Wake up the main loop in the main thread to trigger the plot
                     self.get_logger().info("Goal successfully reached! Generating the final plot...")
@@ -104,7 +113,8 @@ class WaypointPlotterNode(Node):
             
             self.current_path = extracted_points
             self.plot_triggered = False  # Reset the trigger state to allow plotting for the new goal
-            self.real_trajectory_history = [(self.curr_x, self.curr_y, self.curr_z)]  # Reset the real track for the new flight
+            # Reset the real track for the new flight, includendo lo yaw
+            self.real_trajectory_history = [(self.curr_x, self.curr_y, self.curr_z, self.curr_yaw)]  
             self.get_logger().info(f"Received new path with {len(extracted_points)} waypoints. Plot in stand-by until arrival.")
 
 def main(args=None):
@@ -139,7 +149,7 @@ def main(args=None):
                     
                     if len(pts) >= 2:
                         # Time parameters to reconstruct the theoretical spline calculated by the generator
-                        cruise_speed = 0.8
+                        cruise_speed = 0.2
                         min_segment_time = 0.4
                         
                         seg_lengths = np.linalg.norm(np.diff(pts, axis=0), axis=1)
@@ -166,10 +176,20 @@ def main(args=None):
                         # PLOT 1: Theoretical reference trajectory (C2 Spline)
                         ax.plot(xs_dense, ys_dense, zs_dense, label='Reference Trajectory (Spline)', color='#ff7f0e', linewidth=2.5, linestyle='--')
                         
-                        # PLOT 2: Real trajectory actually covered by the drone (Odom)
+                        # PLOT 2 & 6: Real trajectory actually covered by the drone (Odom) + REAL YAW
                         if len(real_history) > 1:
                             real_pts = np.array(real_history)
                             ax.plot(real_pts[:, 0], real_pts[:, 1], real_pts[:, 2], label='Real Trajectory (Odometry)', color='blue', linewidth=2.0)
+                            
+                            # Calcola i vettori per lo yaw reale
+                            real_step = max(1, len(real_pts) // 15)  # Campiona i punti per non sovraffollare il grafico
+                            real_us = np.cos(real_pts[::real_step, 3]) # Indice 3 è lo yaw
+                            real_vs = np.sin(real_pts[::real_step, 3])
+                            real_ws = np.zeros_like(real_us)
+                            
+                            # Quiver per lo Yaw Reale (Viola)
+                            ax.quiver(real_pts[::real_step, 0], real_pts[::real_step, 1], real_pts[::real_step, 2], 
+                                      real_us, real_vs, real_ws, length=0.4, color='purple', normalize=True, label='Real Yaw (Odom)')
                         
                         # PLOT 3: Discrete waypoints extracted from the A* voxel grid
                         ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2], color='gray', s=20, alpha=0.4, label='A* Voxel Waypoints')
@@ -189,9 +209,9 @@ def main(args=None):
                             vs.append(math.sin(yaw))
                             ws.append(0.0)
                             
-                        # PLOT 5: Yaw Vectors
+                        # PLOT 5: Yaw Vectors (Theorici)
                         ax.quiver(xs_dense[::step], ys_dense[::step], zs_dense[::step], 
-                                  us, vs, ws, length=0.4, color='red', normalize=True, label='Yaw Tangent')
+                                  us, vs, ws, length=0.4, color='red', normalize=True, label='Theoretical Yaw Tangent')
                         
                         # Aesthetics, grid, and legend
                         ax.set_xlabel('X Axis [m]')

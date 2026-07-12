@@ -99,6 +99,7 @@ class TrajectoryGenerator(Node):
         self.curr_x = 0.0
         self.curr_y = 0.0
         self.curr_z = 0.0
+        self.curr_yaw = 0.0 # NUOVO: Aggiunto per tracciare lo yaw attuale
         self.have_odom = False
 
         # --- Stato traiettoria corrente ---
@@ -107,6 +108,7 @@ class TrajectoryGenerator(Node):
         self.spline_z = None
         self.total_time = 0.0
         self.traj_start_time = None
+        self.traj_start_yaw = 0.0 # NUOVO: Memorizza lo yaw all'inizio della spline
         self.final_orientation = None
         self.has_trajectory = False
 
@@ -133,6 +135,13 @@ class TrajectoryGenerator(Node):
         self.curr_x = msg.pose.pose.position.x
         self.curr_y = msg.pose.pose.position.y
         self.curr_z = msg.pose.pose.position.z
+        
+        # NUOVO: Estrazione dello yaw attuale per evitare salti a inizio traiettoria
+        q = msg.pose.pose.orientation
+        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+        self.curr_yaw = math.atan2(siny_cosp, cosy_cosp)
+        
         self.have_odom = True
 
     def path_callback(self, msg: Path):
@@ -159,6 +168,10 @@ class TrajectoryGenerator(Node):
 
         self.spline_x, self.spline_y, self.spline_z, self.total_time = result
         self.traj_start_time = self.get_clock().now()
+        
+        # NUOVO: Salva lo yaw reale di partenza nel momento in cui viene generata la spline
+        self.traj_start_yaw = self.curr_yaw 
+        
         self.final_orientation = msg.poses[-1].pose.orientation
         self.has_trajectory = True
         self._last_raw_waypoints = new_waypoints
@@ -207,15 +220,27 @@ class TrajectoryGenerator(Node):
         at_goal = elapsed >= self.total_time
 
         if at_goal and self.final_orientation is not None:
+            # Siamo arrivati a destinazione
             msg.pose.pose.orientation = self.final_orientation
         elif speed_xy > 0.05:
+            # Durante il volo, allinea lo yaw alla direzione della velocità
             yaw = math.atan2(vy, vx)
             msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
             msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
-        elif self.final_orientation is not None:
-            msg.pose.pose.orientation = self.final_orientation
         else:
-            msg.pose.pose.orientation.w = 1.0
+            # Siamo fermi (velocità <= 0.05). 
+            # Dobbiamo distinguere se siamo all'inizio (t=0) o alla fine
+            if elapsed < (self.total_time / 2.0):
+                # Siamo all'inizio della traiettoria: mantieni lo yaw reale di partenza
+                msg.pose.pose.orientation.z = math.sin(self.traj_start_yaw / 2.0)
+                msg.pose.pose.orientation.w = math.cos(self.traj_start_yaw / 2.0)
+            elif self.final_orientation is not None:
+                # Siamo alla fine
+                msg.pose.pose.orientation = self.final_orientation
+            else:
+                yaw = math.atan2(vy, vx)
+                msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
+                msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
 
         self.goal_pose_pub.publish(msg)
 

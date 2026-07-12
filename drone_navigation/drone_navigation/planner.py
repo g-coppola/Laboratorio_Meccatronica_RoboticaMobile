@@ -384,76 +384,69 @@ class AStarPlannerNode(Node):
             goal_y = msg.pose.position.y
             goal_z = msg.pose.position.z
 
-            self.active_goal = (goal_x, goal_y, goal_z)
-            self.final_goal_orientation = msg.pose.orientation 
+            start_world = (self.curr_x, self.curr_y, self.curr_z)
+            goal_world = (goal_x, goal_y, goal_z)
 
-            start_cell = self.grid.world_to_grid(self.curr_x, self.curr_y, self.curr_z)
-            goal_cell = self.grid.world_to_grid(goal_x, goal_y, goal_z)
+            self.active_goal = goal_world
+            self.final_goal_orientation = msg.pose.orientation 
 
             self.get_logger().info(f'Pianificazione verso ({goal_x:.2f},{goal_y:.2f},{goal_z:.2f})...')
 
-            path_cells = astar_3d(self.grid, start_cell, goal_cell)
+            # --- NUOVA LOGICA: Pre-check Line of Sight a quota costante ---
+            # Usa una piccola tolleranza (es. 15 cm) per considerare la quota "uguale", 
+            # in modo da assorbire lievi fluttuazioni dell'odometria.
+            is_same_altitude = abs(goal_z - self.curr_z) < 0.15
+            
+            # Se la quota è (circa) la stessa E non ci sono ostacoli in linea retta
+            if is_same_altitude and has_line_of_sight(self.grid, start_world, goal_world):
+                self.get_logger().info('Goal alla stessa quota e linea di vista libera. Bypass A*, traiettoria diretta!')
+                # Generiamo direttamente il percorso composto solo da Start e Goal
+                path_world = [start_world, goal_world]
+                
+            else:
+                # Altrimenti, il percorso è ostruito o su quote diverse: usiamo A*
+                start_cell = self.grid.world_to_grid(*start_world)
+                goal_cell = self.grid.world_to_grid(*goal_world)
 
-            if path_cells is None:
-                self.get_logger().error('Nessun percorso trovato!')
-                self.path_waypoints = []
-                return
+                path_cells = astar_3d(self.grid, start_cell, goal_cell)
 
-            path_world = [self.grid.grid_to_world(*c) for c in path_cells]
+                if path_cells is None:
+                    self.get_logger().error('Nessun percorso trovato!')
+                    self.path_waypoints = []
+                    return
 
-            # --- Pipeline di riduzione waypoint (chiave per una traiettoria
-            # fluida): l'A* a 26 connessioni produce un percorso "a scalino"
-            # con un waypoint ogni cell_size (0.25m). Se lo passassimo cosi'
-            # com'e' a trajectory_generator, la spline cubica CI PASSA
-            # ESATTAMENTE PER OGNI PUNTO (e' interpolante, non un fit ai
-            # minimi quadrati) e finisce per seguire lo zigzag invece di
-            # tagliare dritto -> traiettoria "nervosa".
-            #   1) simplify_path: string-pulling a vista (Bresenham 3D),
-            #      tiene solo i waypoint dove serve davvero girare.
-            #   2) enforce_min_spacing: toglie eventuali punti rimasti
-            #      troppo ravvicinati (es. vicino allo start).
-            #   3) merge_collinear: seconda pulizia, toglie waypoint che
-            #      simplify_path ha lasciato ma sono quasi in linea retta
-            #      con i vicini.
-            path_world = simplify_path(self.grid, path_world)
-            path_world = enforce_min_spacing(path_world, self.waypoint_min_dist)
-            path_world = merge_collinear(path_world)
+                path_world = [self.grid.grid_to_world(*c) for c in path_cells]
+
+                # Pipeline di pulizia del percorso A*
+                path_world = simplify_path(self.grid, path_world)
+                path_world = enforce_min_spacing(path_world, self.waypoint_min_dist)
+                path_world = merge_collinear(path_world)
 
             self.path_waypoints = path_world
-
 
             self.get_logger().info(f'Percorso aggiornato: {len(self.path_waypoints)} waypoint.')
             
             # --- STAMPA DEI WAYPOINT CON X, Y, Z, YAW ---
             self.get_logger().info('=== ELENCO WAYPOINT GENERATI ===')
             for idx, wp in enumerate(self.path_waypoints):
-                # Se è l'ultimo waypoint, usiamo l'orientamento finale desiderato (se presente)
                 if idx == len(self.path_waypoints) - 1 and self.final_goal_orientation is not None:
-                    # Estraiamo lo yaw dai quaternioni della posa finale
                     q = self.final_goal_orientation
                     siny_cosp = 2 * (q.w * q.z + q.x * q.y)
                     cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
                     yaw = math.atan2(siny_cosp, cosy_cosp)
                 else:
-                    # Altrimenti calcoliamo lo yaw puntando al waypoint successivo
                     if idx < len(self.path_waypoints) - 1:
                         next_wp = self.path_waypoints[idx + 1]
                         dx = next_wp[0] - wp[0]
                         dy = next_wp[1] - wp[1]
                         yaw = math.atan2(dy, dx)
                     else:
-                        yaw = 0.0 # Valore di fallback se manca l'orientamento finale
+                        yaw = 0.0 
 
-            
             # Pubblicazione immediata appena calcolato
             self.publish_path_to_rviz()
 
         except Exception as ex:
-            # Un'eccezione qui non uccide il processo (siamo in un thread
-            # separato), ma senza questo except finirebbe solo su stderr
-            # come traceback grezzo, senza passare dai log ROS, ed e'
-            # facile non accorgersene mentre il tracker continua a mandare
-            # goal. Meglio un log esplicito + path svuotato.
             self.get_logger().error(f'Errore durante il calcolo del percorso: {ex}')
             self.path_waypoints = []
         finally:
@@ -463,11 +456,6 @@ class AStarPlannerNode(Node):
         if not self.path_waypoints:
             return
 
-        # Ripubblica il path per RViz a 5Hz. L'inseguimento vero e proprio
-        # (waypoint-by-waypoint, con pop del target raggiunto) non avviene
-        # PIU' qui: se ne occupa trajectory_generator.py, che trasforma
-        # questi stessi waypoint in una traiettoria continua nel tempo e
-        # pubblica lui su /goal_pose.
         self.publish_path_to_rviz()
 
     def publish_path_to_rviz(self):
