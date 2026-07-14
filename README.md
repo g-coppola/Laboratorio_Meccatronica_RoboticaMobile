@@ -12,7 +12,7 @@ This repository implements a complete **autonomous UAV simulation system** in RO
 ```text
 Gazebo Simulation
        ↓
-RTAB-Map SLAM (3D occupancy grid / Octomap)
+RTAB-Map (3D occupancy grid / Octomap)
        ↓
 A* 3D Planner (voxel-based path planning)
        ↓
@@ -73,9 +73,9 @@ sudo apt install ros-humble-octomap-msgs
 sudo apt install ros-humble-octomap-rviz-plugins
 ```
 
-## 5. Python dependencies (AI/Vision/Visualization)
+## 5. Python dependencies 
 ```bash
-pip3 install ultralytics matplotlib
+pip3 install ultralytics matplotlib scipy
 ```
 
 Compatibily note (IMPORTANT for ROS 2):
@@ -190,13 +190,6 @@ Runs YOLOv8 on the camera stream and displays the detected objects with bounding
 
 ![yolo_cam](imgs/yolo_cam.png)
 
-### Debug Human Tracker
-
-```bash
-ros2 run drone_follow debug_tracker
-```
-
-Detects a person using YOLOv8 and estimates its position in the global frame using camera geometry and drone odometry.
 
 ## 9. Documentation
 - [Gazebo Fortress Documentation](https://gazebosim.org/docs/fortress/ros_installation/)

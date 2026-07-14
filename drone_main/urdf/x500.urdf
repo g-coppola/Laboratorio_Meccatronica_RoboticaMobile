@@ -336,7 +336,7 @@
     <sensor name="camera" type="camera">
       <gz_frame_id>camera_optical_link</gz_frame_id>
       <always_on>true</always_on>
-      <update_rate>10</update_rate> 
+      <update_rate>3</update_rate> 
       <visualize>true</visualize>
       <topic>camera</topic>
       <camera>
@@ -376,7 +376,7 @@
       <gz_frame_id>lidar_link</gz_frame_id>
       <pose>0 0 0 0 0 0</pose>
       <topic>scan_cloud</topic> 
-      <update_rate>10</update_rate>
+      <update_rate>3</update_rate>
       <ray>
         <scan>
           <horizontal>
@@ -386,7 +386,7 @@
             <max_angle>3.14159</max_angle>
           </horizontal>
           <vertical>
-            <samples>32</samples>
+            <samples>16</samples>
             <resolution>1</resolution>
             <min_angle>-0.523599</min_angle>
             <max_angle>0.523599</max_angle>

@@ -1,161 +1,432 @@
 #!/usr/bin/env python3
+"""
+YOLO Tracker Node
+Integrazione tra Ray-Casting 3D di precisione e Navigazione Predittiva con Kalman.
+Il drone insegue il punto più lontano della traccia (delegando l'evitamento ostacoli al planner A*).
+"""
+
+import math
+from collections import deque
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
-import cv2
-import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 from ultralytics import YOLO
 
+
+class SimpleKalmanFilter:
+    """Filtro di Kalman 2D (Modello a Velocita' Costante) con R adattivo e gating degli outlier."""
+    def __init__(self, base_r=0.5):
+        self.x = np.zeros((4, 1))  # Stato: [x, y, vx, vy]
+        self.P = np.eye(4) * 1000.0
+        self.F = np.eye(4)
+        self.H = np.array([[1, 0, 0, 0],
+                           [0, 1, 0, 0]])
+        self.base_r = base_r
+        self.R = np.eye(2) * base_r
+        self.Q = np.eye(4) * 0.1
+        self.is_initialized = False
+
+    def predict(self, dt):
+        if not self.is_initialized or dt <= 0.0:
+            return
+        self.F[0, 2] = dt
+        self.F[1, 3] = dt
+        self.x = np.dot(self.F, self.x)
+        self.P = np.dot(np.dot(self.F, self.P), self.F.T) + self.Q
+
+    def set_measurement_noise(self, drone_ang_rate, drone_speed):
+        scale = 1.0 + 4.0 * min(drone_ang_rate, 2.0) + 1.5 * min(drone_speed, 3.0)
+        self.R = np.eye(2) * (self.base_r * scale)
+
+    def mahalanobis_gate(self, z, gate_threshold=9.21):
+        if not self.is_initialized:
+            return True
+        Z = np.array([[z[0]], [z[1]]])
+        y = Z - np.dot(self.H, self.x)
+        S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
+        try:
+            d2 = float(np.dot(np.dot(y.T, np.linalg.inv(S)), y))
+        except np.linalg.LinAlgError:
+            return True
+        return d2 <= gate_threshold
+
+    def update(self, z):
+        Z = np.array([[z[0]], [z[1]]])
+        if not self.is_initialized:
+            self.x[0, 0] = z[0]
+            self.x[1, 0] = z[1]
+            self.is_initialized = True
+            return
+
+        y = Z - np.dot(self.H, self.x)
+        S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
+        K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))
+        self.x = self.x + np.dot(K, y)
+        self.P = self.P - np.dot(np.dot(K, self.H), self.P)
+
+
+class OdomBuffer:
+    """Interpola posizione/attitudine al timestamp esatto dell'immagine."""
+    def __init__(self, max_len=200):
+        self.buf = deque(maxlen=max_len)
+
+    def push(self, t, x, y, z, roll, pitch, yaw):
+        self.buf.append((t, x, y, z, roll, pitch, yaw))
+
+    @staticmethod
+    def _lerp_angle(a0, a1, alpha):
+        diff = math.atan2(math.sin(a1 - a0), math.cos(a1 - a0))
+        return a0 + diff * alpha
+
+    def query(self, t):
+        if not self.buf: return None
+        if t <= self.buf[0][0]: return self.buf[0][1:]
+        if t >= self.buf[-1][0]: return self.buf[-1][1:]
+
+        for i in range(1, len(self.buf)):
+            t0, x0, y0, z0, r0, p0, yw0 = self.buf[i - 1]
+            t1, x1, y1, z1, r1, p1, yw1 = self.buf[i]
+            if t0 <= t <= t1:
+                alpha = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
+                x = x0 + (x1 - x0) * alpha
+                y = y0 + (y1 - y0) * alpha
+                z = z0 + (z1 - z0) * alpha
+                roll = self._lerp_angle(r0, r1, alpha)
+                pitch = self._lerp_angle(p0, p1, alpha)
+                yaw = self._lerp_angle(yw0, yw1, alpha)
+                return (x, y, z, roll, pitch, yaw)
+        return self.buf[-1][1:]
+
+    def angular_rate(self):
+        if len(self.buf) < 2: return 0.0
+        t0, _, _, _, r0, p0, _ = self.buf[-2]
+        t1, _, _, _, r1, p1, _ = self.buf[-1]
+        dt = t1 - t0
+        if dt <= 1e-3: return 0.0
+        droll = self._lerp_angle(r0, r1, 1.0) - r0
+        dpitch = self._lerp_angle(p0, p1, 1.0) - p0
+        return math.hypot(droll, dpitch) / dt
+
+    def linear_speed(self):
+        if len(self.buf) < 2: return 0.0
+        t0, x0, y0, z0, *_ = self.buf[-2]
+        t1, x1, y1, z1, *_ = self.buf[-1]
+        dt = t1 - t0
+        if dt <= 1e-3: return 0.0
+        return math.dist((x0, y0, z0), (x1, y1, z1)) / dt
+
+
 class YoloTrackerNode(Node):
     def __init__(self):
-        super().__init__('yolo_tracker')
-        
+        super().__init__('yolo_tracker_node')
+
         self.cv_bridge = CvBridge()
-        # Modello YOLO "nano"
-        self.model = YOLO('yolov8n.pt') 
-        
-        # --- Sottoscrizioni e Pubblicazioni ---
-        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
-        
-        self.goal_pub = self.create_publisher(PoseStamped, '/planner_goal', 10)
-        
-        # --- Variabili di Stato (Odometria) ---
-        self.curr_x = 0.0
-        self.curr_y = 0.0
-        self.curr_z = 0.0
-        self.curr_yaw = 0.0
+        self.model = YOLO('yolov8n.pt')
+
+        self.cam_width = 640
+        self.cam_height = 480
+        self.fov_h = 1.50098
+        self.cam_pitch = 0.349
+        self.focal_length = (self.cam_width / 2.0) / math.tan(self.fov_h / 2.0)
+        self.cam_offset_body = np.array([0.17, 0.0, -0.01])
+
+        self.odom_buffer = OdomBuffer(max_len=200)
         self.have_odom = False
-        
-        # --- Macchina a Stati per l'Inseguimento ---
-        self.state = "SEARCHING"
-        self.active_goal = None
-        self.goal_reach_threshold = 0.8  
-        self.min_tracking_distance = 5.0 
-        
-        # NUOVO: Distanza di sicurezza da mantenere dalla persona (in metri)
-        self.standoff_distance = 1.5
-        
-        # Variabile per memorizzare l'ultima misurazione fatta
-        self.last_detection = None
-        
-        # --- Parametri Telecamera ---
-        self.image_w = 640
-        self.image_h = 480
-        hfov = 1.50098
-        self.fx = (self.image_w / 2.0) / math.tan(hfov / 2.0)
 
-        self.get_logger().info('YOLO Tracker Avviato. In attesa della persona...')
-
-    def odom_callback(self, msg: Odometry):
-        self.curr_x = msg.pose.pose.position.x
-        self.curr_y = msg.pose.pose.position.y
-        self.curr_z = msg.pose.pose.position.z
+        self.person_x = None
+        self.person_y = None
         
-        # Estrazione Yaw
+        # Tracciato estratto da Kalman
+        self.path_history = []
+
+        self.is_moving = False
+        self.current_goal_x = None
+        self.current_goal_y = None
+
+        self.kf = SimpleKalmanFilter(base_r=0.5)
+        self.last_meas_time = None
+        self.lost_frames = 0
+
+        self.bbox_ema_alpha = 0.5
+        self._u_smooth = None
+        self._v_smooth = None
+
+        self.activation_distance = 5.0
+        self.stop_distance = 0.5
+        self.goal_reach_tolerance = 0.5
+
+        self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.camera_callback, 10)
+        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+        self.goal_pub = self.create_publisher(PoseStamped, '/planner_goal', 10)
+
+        plt.ion()
+        self.fig, self.ax = plt.subplots(figsize=(6, 8))
+        self.setup_plot()
+        self.plot_timer = self.create_timer(0.5, self.update_plot)
+
+        self.get_logger().info('YOLO Tracker avviato (Ray-Casting 3D + Inseguimento punto più lontano)!')
+
+    def setup_plot(self):
+        self.ax.clear()
+        self.ax.set_xlim(-15, 15)
+        self.ax.set_ylim(-25, 25)
+        self.ax.set_title("Tracking & Kalman (Farthest Point)")
+        self.ax.set_xlabel("X (metri)")
+        self.ax.set_ylabel("Y (metri)")
+        self.ax.grid(True)
+
+    def quaternion_to_euler(self, w, x, y, z):
+        sinr_cosp = 2 * (w * x + y * z)
+        cosr_cosp = 1 - 2 * (x * x + y * y)
+        roll = math.atan2(sinr_cosp, cosr_cosp)
+        sinp = 2 * (w * y - z * x)
+        pitch = math.asin(sinp) if abs(sinp) < 1 else math.copysign(math.pi / 2, sinp)
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y * y + z * z)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
+        return roll, pitch, yaw
+
+    def odom_callback(self, msg):
+        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         q = msg.pose.pose.orientation
-        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-        self.curr_yaw = math.atan2(siny_cosp, cosy_cosp)
-        
+        roll, pitch, yaw = self.quaternion_to_euler(q.w, q.x, q.y, q.z)
+
+        self.odom_buffer.push(
+            t,
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            msg.pose.pose.position.z,
+            roll, pitch, yaw,
+        )
         self.have_odom = True
 
-        if self.state == "NAVIGATING" and self.active_goal is not None:
-            dist_to_goal = math.hypot(self.curr_x - self.active_goal[0], self.curr_y - self.active_goal[1])
-            
-            if dist_to_goal < self.goal_reach_threshold:
-                self.get_logger().info('Goal raggiunto! Riprendo la scansione visiva.')
-                self.state = "SEARCHING"
-                self.active_goal = None
-                
-                # Se passiamo in SEARCHING, controlliamo se c'è un'ultima misurazione nota
-                if self.last_detection is not None:
-                    # Calcoliamo la distanza tra noi e l'ultima misurazione calcolata (che già include lo standoff)
-                    dist_to_last = math.hypot(self.curr_x - self.last_detection[0], self.curr_y - self.last_detection[1])
-                    
-                    # Se l'ultima misurazione è oltre la soglia di arrivo, la persona si è mossa
-                    if dist_to_last > self.goal_reach_threshold:
-                        self.get_logger().info('Inoltro l\'ultima posizione nota (con offset) della persona al planner.')
-                        self.active_goal = (self.last_detection[0], self.last_detection[1])
-                        self.send_goal(*self.last_detection)
-                        self.state = "NAVIGATING"
-                    else:
-                        # Se siamo già vicini all'ultima misurazione (persona ferma), puliamo la variabile
-                        self.last_detection = None
+        if self.is_moving and self.current_goal_x is not None and self.current_goal_y is not None:
+            dist_to_goal = math.hypot(
+                msg.pose.pose.position.x - self.current_goal_x,
+                msg.pose.pose.position.y - self.current_goal_y,
+            )
+            if dist_to_goal <= self.goal_reach_tolerance:
+                self.get_logger().info('Goal raggiunto! In attesa di nuove istruzioni...')
+                self.is_moving = False
+                self.current_goal_x = None
+                self.current_goal_y = None
+                self.lost_frames = 0
 
-    def image_callback(self, msg: Image):
+    def camera_callback(self, msg):
         if not self.have_odom:
             return
 
+        img_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        if img_time <= 0.0:
+            img_time = self.get_clock().now().nanoseconds * 1e-9
+
+        if self.last_meas_time is None:
+            self.last_meas_time = img_time
+            return
+        dt = img_time - self.last_meas_time
+        if dt <= 0.0:
+            return
+        self.last_meas_time = img_time
+
+        pose = self.odom_buffer.query(img_time)
+        if pose is None:
+            return
+        drone_x, drone_y, drone_z, drone_roll, drone_pitch, drone_yaw = pose
+
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         results = self.model(cv_image, classes=[0], conf=0.5, verbose=False)
-        
-        annotated_frame = results[0].plot()
-        cv2.imshow('YOLO Tracker', annotated_frame)
-        cv2.waitKey(1)
 
-        # Estrazione diretta: essendoci una sola persona, prendiamo la prima rilevata
-        if len(results[0].boxes) > 0:
-            box = results[0].boxes[0]
-            x_c, y_c, w, h = box.xywh[0].tolist()
-            
-            # Stima della distanza
-            real_h = 1.7 
-            dist = (real_h * self.fx) / h
+        person_detected = False
 
-            if dist > self.min_tracking_distance:
-                # Calcolo della direzione
-                angle_offset = -math.atan2(x_c - (self.image_w / 2.0), self.fx)
-                target_yaw = self.curr_yaw + angle_offset
-                
-                # NUOVO: Sottraiamo la distanza di sicurezza per non finire addosso alla persona.
-                # Se la persona per caso ci viene incontro a meno della standoff_distance, 
-                # target_dist diventa negativo e il drone arretrerà naturalmente mantenendo lo yaw!
-                target_dist = dist - self.standoff_distance
-                
-                # Proiezione nella mappa fermandosi 'standoff_distance' prima del target
-                target_x = self.curr_x + target_dist * math.cos(target_yaw)
-                target_y = self.curr_y + target_dist * math.sin(target_yaw)
-                
-                # Quota fissa di sicurezza a 3.2 metri
-                target_z = 3.2 
+        if len(results) > 0 and len(results[0].boxes) > 0:
+            best_box = results[0].boxes[0]
+            x1, y1, x2, y2 = best_box.xyxy[0].tolist()
 
-                # Aggiorniamo SEMPRE l'ultima misurazione rilevata, a prescindere dallo stato
-                self.last_detection = (target_x, target_y, target_z, target_yaw)
+            u_raw = (x1 + x2) / 2.0
+            v_raw = y2
 
-                # Se il drone è fermo e sta cercando, avvia la navigazione immediatamente
-                if self.state == "SEARCHING":
-                    self.get_logger().info(
-                        f'Persona rilevata a {dist:.2f}m. '
-                        f'Invio goal a X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target_z:.2f} '
-                        f'(Distanza mantenuta: {self.standoff_distance}m) con Yaw:{target_yaw:.2f} rad'
-                    )
+            if self._u_smooth is None:
+                self._u_smooth, self._v_smooth = u_raw, v_raw
+            else:
+                a = self.bbox_ema_alpha
+                self._u_smooth = a * u_raw + (1 - a) * self._u_smooth
+                self._v_smooth = a * v_raw + (1 - a) * self._v_smooth
+            u, v = self._u_smooth, self._v_smooth
+
+            u_c = u - (self.cam_width / 2.0)
+            v_c = v - (self.cam_height / 2.0)
+
+            ray_opt = np.array([u_c / self.focal_length, v_c / self.focal_length, 1.0])
+            ray_cam = np.array([ray_opt[2], -ray_opt[0], -ray_opt[1]])
+
+            cp_m = math.cos(self.cam_pitch)
+            sp_m = math.sin(self.cam_pitch)
+            R_mount = np.array([
+                [cp_m, 0, sp_m],
+                [0, 1, 0],
+                [-sp_m, 0, cp_m]
+            ])
+            ray_body = np.dot(R_mount, ray_cam)
+
+            cr = math.cos(drone_roll)
+            sr = math.sin(drone_roll)
+            cp_d = math.cos(drone_pitch)
+            sp_d = math.sin(drone_pitch)
+            cy = math.cos(drone_yaw)
+            sy = math.sin(drone_yaw)
+
+            R_x = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+            R_y = np.array([[cp_d, 0, sp_d], [0, 1, 0], [-sp_d, 0, cp_d]])
+            R_z = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+
+            R_drone = np.dot(R_z, np.dot(R_y, R_x))
+            ray_world = np.dot(R_drone, ray_body)
+
+            cam_offset_world = np.dot(R_drone, self.cam_offset_body)
+            cam_x = drone_x + cam_offset_world[0]
+            cam_y = drone_y + cam_offset_world[1]
+            cam_z = drone_z + cam_offset_world[2]
+
+            D_x, D_y, D_z = ray_world[0], ray_world[1], ray_world[2]
+
+            if D_z < -0.15:
+                t = -cam_z / D_z
+                meas_x = cam_x + t * D_x
+                meas_y = cam_y + t * D_y
+
+                ang_rate = self.odom_buffer.angular_rate()
+                lin_speed = self.odom_buffer.linear_speed()
+                self.kf.set_measurement_noise(ang_rate, lin_speed)
+
+                if self.kf.mahalanobis_gate([meas_x, meas_y]):
+                    self.kf.predict(dt)
+                    self.kf.update([meas_x, meas_y])
                     
-                    self.active_goal = (target_x, target_y)
-                    self.state = "NAVIGATING"
-                    self.send_goal(target_x, target_y, target_z, target_yaw)
+                    self.person_x = float(self.kf.x[0, 0])
+                    self.person_y = float(self.kf.x[1, 0])
+                    person_detected = True
+                    self.lost_frames = 0
+                else:
+                    self.get_logger().debug('Misura scartata: outlier rispetto al Kalman.')
 
-    def send_goal(self, x, y, z, target_yaw):
+        # Se la persona non è rilevata (o scartata), il Kalman predice comunque
+        if not person_detected:
+            self.person_x = None
+            self.person_y = None
+            if self.kf.is_initialized:
+                self.kf.predict(dt)
+                self.lost_frames += 1
+
+        # --- FASE 1: POPOLAMENTO DEL TRACCIATO (DA KALMAN) ---
+        # Limitiamo le predizioni cieche a ~30 frames (circa 3 secondi a 10Hz) per evitare
+        # di generare tracciati infiniti e proiettare il drone contro i muri lontani.
+        if self.kf.is_initialized and self.lost_frames < 30:
+            kf_x = float(self.kf.x[0, 0])
+            kf_y = float(self.kf.x[1, 0])
+            
+            if not self.path_history:
+                self.path_history.append((kf_x, kf_y))
+            else:
+                last_x, last_y = self.path_history[-1]
+                # Aggiunge un punto ogni 20 cm di spostamento
+                if math.hypot(last_x - kf_x, last_y - kf_y) > 0.2:
+                    self.path_history.append((kf_x, kf_y))
+
+        # --- FASE 2: PULIZIA DELLA MEMORIA ---
+        # Cancelliamo i passi che il drone si è già lasciato alle spalle
+        if self.path_history:
+            min_d = float('inf')
+            min_idx = 0
+            for i, (px, py) in enumerate(self.path_history):
+                d = math.hypot(px - drone_x, py - drone_y)
+                if d < min_d:
+                    min_d = d
+                    min_idx = i
+            self.path_history = self.path_history[min_idx:]
+
+        # --- FASE 3: INSEGUIMENTO DEL PUNTO PIÙ LONTANO ---
+        # Quando il drone è in attesa, controlla la distanza dal termine del tracciato.
+        if not self.is_moving and self.path_history:
+            # L'ultimo punto della traccia è il più lontano (la persona o la fine della predizione)
+            end_x, end_y = self.path_history[-1]
+            dist_to_end = math.hypot(end_x - drone_x, end_y - drone_y)
+
+            if dist_to_end >= self.activation_distance:
+                
+                # Calcola l'angolo diretto verso il punto più lontano
+                target_yaw = math.atan2(end_y - drone_y, end_x - drone_x)
+                
+                # Applica l'offset di sicurezza (si ferma a 'stop_distance' metri dalla persona/predizione)
+                goal_x = end_x - self.stop_distance * math.cos(target_yaw)
+                goal_y = end_y - self.stop_distance * math.sin(target_yaw)
+                
+                self.send_goal(goal_x, goal_y, target_yaw)
+                self.current_goal_x = goal_x
+                self.current_goal_y = goal_y
+                self.is_moving = True
+                self.get_logger().info('Distanza superata! Inseguo il punto più lontano, A* calcolerà la rotta.')
+
+
+    def send_goal(self, gx, gy, target_yaw):
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'odom'
-        msg.pose.position.x = float(x)
-        msg.pose.position.y = float(y)
-        msg.pose.position.z = float(z)
-        
-        # Conversione dell'angolo target_yaw in quaternione 
-        # Questo forza il drone a guardare verso la persona quando arriva
-        msg.pose.orientation.x = 0.0
-        msg.pose.orientation.y = 0.0
+
+        msg.pose.position.x = float(gx)
+        msg.pose.position.y = float(gy)
+        msg.pose.position.z = 3.0
+
         msg.pose.orientation.z = math.sin(target_yaw / 2.0)
         msg.pose.orientation.w = math.cos(target_yaw / 2.0)
-        
+        msg.pose.orientation.x = 0.0
+        msg.pose.orientation.y = 0.0
+
         self.goal_pub.publish(msg)
+        self.get_logger().info(f"Goal Inviato -> X:{gx:.2f}, Y:{gy:.2f}")
+
+    def update_plot(self):
+        self.setup_plot()
+
+        if len(self.path_history) > 0:
+            hx = [p[0] for p in self.path_history]
+            hy = [p[1] for p in self.path_history]
+            self.ax.plot(hx, hy, 'r.', markersize=4, alpha=0.5, label='Traccia Kalman')
+
+        if self.person_x is not None and self.person_y is not None:
+            self.ax.plot(self.person_x, self.person_y, 'ro', markersize=8, label='Posizione YOLO')
+
+        if self.kf.is_initialized:
+            kf_x = self.kf.x[0, 0]
+            kf_y = self.kf.x[1, 0]
+            self.ax.plot(kf_x, kf_y, 'gx', markersize=6, label='Filtro Kalman')
+
+        if self.have_odom and self.odom_buffer.buf:
+            _, dx, dy, dz, dr, dp, dyaw = self.odom_buffer.buf[-1]
+            self.ax.plot(dx, dy, 'bo', markersize=8, label='Drone')
+            self.ax.arrow(dx, dy,
+                          math.cos(dyaw) * 1.5, math.sin(dyaw) * 1.5,
+                          head_width=0.5, head_length=0.5, fc='b', ec='b')
+
+            circle = plt.Circle((dx, dy), self.activation_distance, color='gray', fill=False, linestyle='--')
+            self.ax.add_patch(circle)
+
+        if self.is_moving and self.current_goal_x is not None:
+            self.ax.plot(self.current_goal_x, self.current_goal_y, 'gX', markersize=10, label='Goal Attuale')
+            self.ax.text(-14, -23, "Stato: IN VIAGGIO", color='green', weight='bold')
+        else:
+            self.ax.text(-14, -23, "Stato: IN ATTESA", color='orange', weight='bold')
+
+        self.ax.legend(loc='upper right')
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -167,7 +438,8 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-        cv2.destroyAllWindows()
+        plt.ioff()
+        plt.show()
 
 if __name__ == '__main__':
     main()

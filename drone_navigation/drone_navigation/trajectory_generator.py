@@ -1,36 +1,3 @@
-#!/usr/bin/env python3
-"""
-Trajectory Generator Node
-==========================
-Si inserisce TRA il planner A* (planner.py) e il controllore di volo
-(full_control.py), senza che quest'ultimo debba cambiare.
-
-Perche' serve
--------------
-planner.py oggi pubblica un SOLO waypoint alla volta su /goal_pose (lo
-"pop-a" dalla lista quando il drone gli si avvicina) e non riempie mai il
-campo twist del messaggio. Risultato: full_control.py insegue punti fermi
-con il solo PID reattivo (target_vx/vy restano sempre a zero) -> il drone
-frena ad ogni waypoint e riparte, cioe' la navigazione "punto-punto" che
-si vuole eliminare.
-
-Questo nodo prende la LISTA di waypoint pubblicata da planner.py su
-/planner/path (gia' esistente, nessuna modifica al planner A* necessaria)
-e ci fa passare tre spline cubiche x(t), y(t), z(t):
-  - continue in posizione, velocita' E accelerazione (C2)
-  - velocita' nulla al primo e all'ultimo punto ("clamped": volo
-    hover-to-hover)
-Poi, ad ogni tick di un timer, campiona posizione E velocita' all'istante
-corrente e le pubblica su /goal_pose nello stesso formato (nav_msgs/Odometry)
-che full_control.py gia' consuma: il campo twist, che finora arrivava
-sempre a zero, ora porta la velocita' vera della traiettoria e va ad
-alimentare direttamente il feedforward (k_ff_xy) gia' presente nel tuo
-controllore.
-
-Dipendenze aggiuntive: numpy, scipy
-    pip install scipy --break-system-packages     # o: sudo apt install python3-scipy
-"""
-
 import math
 
 import numpy as np
@@ -43,22 +10,6 @@ from nav_msgs.msg import Odometry, Path
 
 
 def build_trajectory(points_xyz, cruise_speed, min_segment_time):
-    """
-    Costruisce tre spline cubiche "clamped" (velocita' nulla ai due estremi)
-    attraverso i punti dati, con parametrizzazione temporale basata sulla
-    lunghezza d'arco (tempo di ogni segmento = distanza / cruise_speed).
-
-    points_xyz: lista di (x, y, z). Il primo elemento deve essere il punto
-                di partenza "vero" (tipicamente la posizione ODOM attuale
-                del drone, non il primo waypoint discretizzato del planner:
-                cosi' non c'e' nessun salto iniziale).
-    cruise_speed: velocita' media desiderata lungo i segmenti [m/s].
-    min_segment_time: tempo minimo per segmento [s], evita segmenti
-                       "sparati" quando due punti sono molto ravvicinati.
-
-    Ritorna (spline_x, spline_y, spline_z, durata_totale) oppure None se i
-    punti non bastano a definire una traiettoria (es. < 2 punti distinti).
-    """
     pts = np.asarray(points_xyz, dtype=float)
 
     # Rimuove punti consecutivi troppo vicini: altrimenti creano segmenti a

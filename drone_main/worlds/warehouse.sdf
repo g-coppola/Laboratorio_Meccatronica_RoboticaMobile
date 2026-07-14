@@ -12,19 +12,11 @@
             name="gz::sim::systems::Sensors">
       <render_engine>ogre</render_engine>
     </plugin>
-    <plugin filename="gz-sim-imu-system"
-            name="gz::sim::systems::Imu"/>
-    <plugin filename="gz-sim-magnetometer-system"
-            name="gz::sim::systems::Magnetometer"/>
-    <plugin filename="gz-sim-navsat-system"
-            name="gz::sim::systems::NavSat"/>
-    <plugin filename="gz-sim-air-pressure-system"
-            name="gz::sim::systems::AirPressure"/>
 
     <physics type="ode">
       <max_step_size>0.004</max_step_size>
       <real_time_factor>1.0</real_time_factor>
-      <real_time_update_rate>250</real_time_update_rate>
+      <real_time_update_rate>80</real_time_update_rate>
     </physics>
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
@@ -378,7 +370,7 @@
                 <trajectory id="0" type="walk" tension="0.6">
             <waypoint>
                 <time>0</time>
-                <pose>9.0 -21.0 1.09 0 0 1.57</pose>
+                <pose>9.0 -21.5 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
                 <time>35</time>
@@ -401,80 +393,80 @@
                 <pose>0.0 13.0 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
-                <time>84</time>
+                <time>85</time>
                 <pose>0.0 13.0 1.09 0 0 3.14</pose>
             </waypoint>
             <waypoint>
-                <time>94</time>
-                <pose>-2.5 13.0 1.09 0 0 3.14</pose>
-            </waypoint>
-            <waypoint>
                 <time>95</time>
-                <pose>-2.5 13.0 1.09 0 0 1.57</pose>
+                <pose>-1.5 13.0 1.09 0 0 3.14</pose>
             </waypoint>
             <waypoint>
-                <time>120</time>
-                <pose>-2.5 23.0 1.09 0 0 1.57</pose>
+                <time>96</time>
+                <pose>-1.5 13.0 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
-                <time>121</time>
-                <pose>-2.5 23.0 1.09 0 0 3.14</pose>
+                <time>128</time>
+                <pose>-1.5 23.5 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
-                <time>136</time>
-                <pose>-9.0 23.0 1.09 0 0 3.14</pose>
+                <time>130</time>
+                <pose>-1.5 23.5 1.09 0 0 3.14</pose>
             </waypoint>
             <waypoint>
-                <time>137</time>
-                <pose>-9.0 23.0 1.09 0 0 -1.57</pose>
+                <time>149</time>
+                <pose>-9.0 23.5 1.09 0 0 3.14</pose>
             </waypoint>
             <waypoint>
-                <time>188</time>
-                <pose>-9.0 -21 1.09 0 0 -1.57</pose>
+                <time>151</time>
+                <pose>-9.0 23.5 1.09 0 0 -1.57</pose>
             </waypoint>
             <waypoint>
-                <time>189</time>
-                <pose>-9.0 -21 1.09 0 0 0</pose>
+                <time>212</time>
+                <pose>-9.0 -21.5 1.09 0 0 -1.57</pose>
             </waypoint>
             <waypoint>
-                <time>205</time>
-                <pose>-2.0 -21 1.09 0 0 0</pose>
+                <time>214</time>
+                <pose>-9.0 -21.5 1.09 0 0 0</pose>
             </waypoint>
             <waypoint>
-                <time>206</time>
-                <pose>-2.0 -21.0 1.09 0 0 1.57</pose>
-            </waypoint>
-            <waypoint>
-                <time>221</time>
-                <pose>-2.0 -14.0 1.09 0 0 1.57</pose>
-            </waypoint>
-            <waypoint>
-                <time>222</time>
-                <pose>-2.0 -14.0 1.09 0 0 0</pose>
+                <time>230</time>
+                <pose>-1.5 -21.5 1.09 0 0 0</pose>
             </waypoint>
             <waypoint>
                 <time>231</time>
-                <pose>2.0 -14.0 1.09 0 0 0</pose>
+                <pose>-1.5 -21.5 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
-                <time>232</time>
-                <pose>2.0 -14.0 1.09 0 0 -1.57</pose>
+                <time>246</time>
+                <pose>-1.5 -14.0 1.09 0 0 1.57</pose>
             </waypoint>
             <waypoint>
                 <time>247</time>
-                <pose>2.0 -21.0 1.09 0 0 -1.57</pose>
+                <pose>-1.5 -14.0 1.09 0 0 0</pose>
             </waypoint>
             <waypoint>
-                <time>248</time>
-                <pose>2.0 -21.0 1.09 0 0 0</pose>
+                <time>256</time>
+                <pose>1.0 -14.0 1.09 0 0 0</pose>
             </waypoint>
             <waypoint>
-                <time>270</time>
-                <pose>9.0 -21.0 1.09 0 0 0</pose>
+                <time>257</time>
+                <pose>1.0 -14.0 1.09 0 0 -1.57</pose>
             </waypoint>
             <waypoint>
-                <time>271</time>
-                <pose>9.0 -21.0 1.09 0 0 1.57</pose>
+                <time>272</time>
+                <pose>1.0 -21.5 1.09 0 0 -1.57</pose>
+            </waypoint>
+            <waypoint>
+                <time>273</time>
+                <pose>1.0 -21.5 1.09 0 0 0</pose>
+            </waypoint>
+            <waypoint>
+                <time>285</time>
+                <pose>9.0 -21.5 1.09 0 0 0</pose>
+            </waypoint>
+            <waypoint>
+                <time>286</time>
+                <pose>9.0 -21.5 1.09 0 0 1.57</pose>
             </waypoint>
         </trajectory>
     </script>
