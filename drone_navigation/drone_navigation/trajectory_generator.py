@@ -50,7 +50,6 @@ class TrajectoryGenerator(Node):
         self.curr_x = 0.0
         self.curr_y = 0.0
         self.curr_z = 0.0
-        self.curr_yaw = 0.0 # NUOVO: Aggiunto per tracciare lo yaw attuale
         self.have_odom = False
 
         # --- Stato traiettoria corrente ---
@@ -59,15 +58,10 @@ class TrajectoryGenerator(Node):
         self.spline_z = None
         self.total_time = 0.0
         self.traj_start_time = None
-        self.traj_start_yaw = 0.0 # NUOVO: Memorizza lo yaw all'inizio della spline
+        self.traj_start_orientation = None # Salva il quaternione iniziale dal Path
         self.final_orientation = None
         self.has_trajectory = False
 
-        # Ultimo set di waypoint "grezzi" ricevuti da /planner/path: serve
-        # per ignorare le ripubblicazioni del path quando NON e' cambiato
-        # (planner.py lo ripubblica ogni 0.2s per RViz anche se e' identico:
-        # senza questo controllo la traiettoria verrebbe rigenerata/azzerata
-        # in continuazione e il drone non avanzerebbe mai davvero).
         self._last_raw_waypoints = None
 
         self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
@@ -86,13 +80,6 @@ class TrajectoryGenerator(Node):
         self.curr_x = msg.pose.pose.position.x
         self.curr_y = msg.pose.pose.position.y
         self.curr_z = msg.pose.pose.position.z
-        
-        # NUOVO: Estrazione dello yaw attuale per evitare salti a inizio traiettoria
-        q = msg.pose.pose.orientation
-        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-        self.curr_yaw = math.atan2(siny_cosp, cosy_cosp)
-        
         self.have_odom = True
 
     def path_callback(self, msg: Path):
@@ -120,8 +107,8 @@ class TrajectoryGenerator(Node):
         self.spline_x, self.spline_y, self.spline_z, self.total_time = result
         self.traj_start_time = self.get_clock().now()
         
-        # NUOVO: Salva lo yaw reale di partenza nel momento in cui viene generata la spline
-        self.traj_start_yaw = self.curr_yaw 
+        # Estrae il quaternione esatto di partenza direttamente dal planner
+        self.traj_start_orientation = msg.poses[0].pose.orientation 
         
         self.final_orientation = msg.poses[-1].pose.orientation
         self.has_trajectory = True
@@ -159,10 +146,6 @@ class TrajectoryGenerator(Node):
         msg.pose.pose.position.y = y
         msg.pose.pose.position.z = z
 
-        # Qui la differenza chiave rispetto a prima: il twist NON e' piu'
-        # sempre zero, e va ad attivare il feedforward gia' scritto in
-        # full_control.py (k_ff_xy, ora anche k_ff_z se applichi la
-        # modifica opzionale a full_control.py).
         msg.twist.twist.linear.x = vx
         msg.twist.twist.linear.y = vy
         msg.twist.twist.linear.z = vz
@@ -181,10 +164,9 @@ class TrajectoryGenerator(Node):
         else:
             # Siamo fermi (velocità <= 0.05). 
             # Dobbiamo distinguere se siamo all'inizio (t=0) o alla fine
-            if elapsed < (self.total_time / 2.0):
-                # Siamo all'inizio della traiettoria: mantieni lo yaw reale di partenza
-                msg.pose.pose.orientation.z = math.sin(self.traj_start_yaw / 2.0)
-                msg.pose.pose.orientation.w = math.cos(self.traj_start_yaw / 2.0)
+            if elapsed < (self.total_time / 2.0) and self.traj_start_orientation is not None:
+                # Siamo all'inizio della traiettoria: mantieni l'orientamento reale di partenza
+                msg.pose.pose.orientation = self.traj_start_orientation
             elif self.final_orientation is not None:
                 # Siamo alla fine
                 msg.pose.pose.orientation = self.final_orientation

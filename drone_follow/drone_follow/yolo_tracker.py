@@ -160,7 +160,11 @@ class YoloTrackerNode(Node):
 
         self.activation_distance = 5.0
         self.stop_distance = 0.5
-        self.goal_reach_tolerance = 0.5
+        self.goal_reach_tolerance = 0.1
+
+        # NUOVI PARAMETRI PER IL DELAY DI PARTENZA
+        self.goal_delay = 2.0             # Secondi di attesa prima di partire
+        self.activation_start_time = None # Timestamp di inizio superamento soglia
 
         self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.camera_callback, 10)
         self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
@@ -171,7 +175,7 @@ class YoloTrackerNode(Node):
         self.setup_plot()
         self.plot_timer = self.create_timer(0.5, self.update_plot)
 
-        self.get_logger().info('YOLO Tracker avviato (Ray-Casting 3D + Inseguimento punto più lontano)!')
+        self.get_logger().info('YOLO Tracker avviato (Ray-Casting 3D + Inseguimento con Delay)!')
 
     def setup_plot(self):
         self.ax.clear()
@@ -218,6 +222,7 @@ class YoloTrackerNode(Node):
                 self.current_goal_x = None
                 self.current_goal_y = None
                 self.lost_frames = 0
+                self.activation_start_time = None # Resetta il timer di attivazione per il prossimo volo
 
     def camera_callback(self, msg):
         if not self.have_odom:
@@ -316,7 +321,6 @@ class YoloTrackerNode(Node):
                 else:
                     self.get_logger().debug('Misura scartata: outlier rispetto al Kalman.')
 
-        # Se la persona non è rilevata (o scartata), il Kalman predice comunque
         if not person_detected:
             self.person_x = None
             self.person_y = None
@@ -325,8 +329,6 @@ class YoloTrackerNode(Node):
                 self.lost_frames += 1
 
         # --- FASE 1: POPOLAMENTO DEL TRACCIATO (DA KALMAN) ---
-        # Limitiamo le predizioni cieche a ~30 frames (circa 3 secondi a 10Hz) per evitare
-        # di generare tracciati infiniti e proiettare il drone contro i muri lontani.
         if self.kf.is_initialized and self.lost_frames < 30:
             kf_x = float(self.kf.x[0, 0])
             kf_y = float(self.kf.x[1, 0])
@@ -335,12 +337,10 @@ class YoloTrackerNode(Node):
                 self.path_history.append((kf_x, kf_y))
             else:
                 last_x, last_y = self.path_history[-1]
-                # Aggiunge un punto ogni 20 cm di spostamento
                 if math.hypot(last_x - kf_x, last_y - kf_y) > 0.2:
                     self.path_history.append((kf_x, kf_y))
 
         # --- FASE 2: PULIZIA DELLA MEMORIA ---
-        # Cancelliamo i passi che il drone si è già lasciato alle spalle
         if self.path_history:
             min_d = float('inf')
             min_idx = 0
@@ -351,27 +351,40 @@ class YoloTrackerNode(Node):
                     min_idx = i
             self.path_history = self.path_history[min_idx:]
 
-        # --- FASE 3: INSEGUIMENTO DEL PUNTO PIÙ LONTANO ---
-        # Quando il drone è in attesa, controlla la distanza dal termine del tracciato.
+        # --- FASE 3: INSEGUIMENTO DEL PUNTO PIÙ LONTANO CON DELAY ---
         if not self.is_moving and self.path_history:
-            # L'ultimo punto della traccia è il più lontano (la persona o la fine della predizione)
             end_x, end_y = self.path_history[-1]
             dist_to_end = math.hypot(end_x - drone_x, end_y - drone_y)
 
+            # Se supera la soglia di attivazione (5.0 metri)
             if dist_to_end >= self.activation_distance:
+                # Controlla il timer
+                if self.activation_start_time is None:
+                    # Inizia a contare ORA
+                    self.activation_start_time = img_time
+                    self.get_logger().info(f'Distanza superata! Preparazione al volo in {self.goal_delay}s...')
                 
-                # Calcola l'angolo diretto verso il punto più lontano
-                target_yaw = math.atan2(end_y - drone_y, end_x - drone_x)
-                
-                # Applica l'offset di sicurezza (si ferma a 'stop_distance' metri dalla persona/predizione)
-                goal_x = end_x - self.stop_distance * math.cos(target_yaw)
-                goal_y = end_y - self.stop_distance * math.sin(target_yaw)
-                
-                self.send_goal(goal_x, goal_y, target_yaw)
-                self.current_goal_x = goal_x
-                self.current_goal_y = goal_y
-                self.is_moving = True
-                self.get_logger().info('Distanza superata! Inseguo il punto più lontano, A* calcolerà la rotta.')
+                # Se il tempo trascorso è maggiore o uguale al delay
+                elif (img_time - self.activation_start_time) >= self.goal_delay:
+                    
+                    target_yaw = math.atan2(end_y - drone_y, end_x - drone_x)
+                    goal_x = end_x - self.stop_distance * math.cos(target_yaw)
+                    goal_y = end_y - self.stop_distance * math.sin(target_yaw)
+                    
+                    self.send_goal(goal_x, goal_y, target_yaw)
+                    self.current_goal_x = goal_x
+                    self.current_goal_y = goal_y
+                    self.is_moving = True
+                    
+                    # Reset del timer per la prossima volta
+                    self.activation_start_time = None
+                    self.get_logger().info('Partenza! Inseguo il punto più lontano.')
+            
+            else:
+                # Se la distanza torna sotto la soglia PRIMA che passino i 2 secondi
+                if self.activation_start_time is not None:
+                    self.activation_start_time = None
+                    self.get_logger().info('Bersaglio tornato vicino, partenza annullata.')
 
 
     def send_goal(self, gx, gy, target_yaw):
@@ -417,9 +430,18 @@ class YoloTrackerNode(Node):
             circle = plt.Circle((dx, dy), self.activation_distance, color='gray', fill=False, linestyle='--')
             self.ax.add_patch(circle)
 
+        # Logica Visiva per lo stato del drone nel grafico
         if self.is_moving and self.current_goal_x is not None:
             self.ax.plot(self.current_goal_x, self.current_goal_y, 'gX', markersize=10, label='Goal Attuale')
             self.ax.text(-14, -23, "Stato: IN VIAGGIO", color='green', weight='bold')
+        
+        elif self.activation_start_time is not None:
+            # Calcola il tempo rimanente e mostralo a schermo
+            current_time = self.get_clock().now().nanoseconds * 1e-9
+            time_elapsed = current_time - self.activation_start_time
+            countdown = max(0.0, self.goal_delay - time_elapsed)
+            self.ax.text(-14, -23, f"Stato: IN PARTENZA ({countdown:.1f}s)", color='red', weight='bold')
+        
         else:
             self.ax.text(-14, -23, "Stato: IN ATTESA", color='orange', weight='bold')
 
