@@ -406,7 +406,7 @@ class AStarPlannerNode(Node):
                 # Il punto di partenza ha ESATTAMENTE l'orientamento reale attuale del drone
                 pose.pose.orientation = self.curr_orientation
             elif i == len(self.path_waypoints) - 1 and self.final_goal_orientation is not None:
-                # Il punto finale ha l'orientamento richiesto dal goal
+                # Il punto finale ha l'orientamento richiesto dal goal (x, y, z, w inclusi!)
                 pose.pose.orientation = self.final_goal_orientation
             else:
                 # I punti intermedi usano la tangente della traiettoria (Yaw)
@@ -418,7 +418,10 @@ class AStarPlannerNode(Node):
                 else:
                     yaw = 0.0 # Fallback di sicurezza 
                     
-                # Costruzione del Quaternione (rotazione solo su asse Z)
+                # Costruzione esplicita del Quaternione. Inizializziamo a zero X e Y per
+                # garantire che il modulo spaziale di Scipy legga quaternioni matematicamente validi.
+                pose.pose.orientation.x = 0.0
+                pose.pose.orientation.y = 0.0
                 pose.pose.orientation.z = math.sin(yaw / 2.0)
                 pose.pose.orientation.w = math.cos(yaw / 2.0)
                 

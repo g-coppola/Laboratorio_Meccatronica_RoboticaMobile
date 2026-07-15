@@ -63,14 +63,14 @@ class FullDroneController(Node):
         
         # Feedforward Gain (Adjustable)
         self.k_ff_xy = 0.1
-        self.k_ff_z = 0.0
+        self.k_ff_z = 0.5
         
         # --- OUTER PID LOOP (X, Y Position) ---
         self.pid_x = PIDController(kp=0.15, ki=0.0, kd=0.1, min_out=-0.25, max_out=0.25)
         self.pid_y = PIDController(kp=0.15, ki=0.0, kd=0.1, min_out=-0.25, max_out=0.25)
 
         # --- INNER PID LOOP (Altitude and Attitude) ---
-        self.pid_alt   = PIDController(kp=15.0, ki=0.01, kd=45.0, min_out=-150.0, max_out=150.0)
+        self.pid_alt   = PIDController(kp=15.0, ki=0.05, kd=45.0, min_out=-150.0, max_out=150.0)
         self.pid_roll  = PIDController(kp=35.0, ki=0.01, kd=8.0,  min_out=-80.0,  max_out=80.0)
         self.pid_pitch = PIDController(kp=35.0, ki=0.01, kd=8.0,  min_out=-80.0,  max_out=80.0)
         self.pid_yaw   = PIDController(kp=8.0, ki=0.01, kd=13.0,  min_out=-50.0,  max_out=50.0)
