@@ -50,7 +50,7 @@ class TrajectoryGenerator(Node):
     def __init__(self):
         super().__init__('trajectory_generator')
 
-        self.declare_parameter('cruise_speed', 0.3)
+        self.declare_parameter('cruise_speed', 0.35)
         self.declare_parameter('update_rate', 30.0)
         self.declare_parameter('min_segment_time', 0.4)
 

@@ -2,7 +2,7 @@
 
 This repository implements a complete **autonomous UAV simulation system** in ROS 2, combining:
 
-- 3D SLAM (RTAB-Map + Octomap)
+- 3D Mapping (RTAB-Map)
 - 3D A* voxel-based path planning
 - Cascaded PID flight control
 - YOLOv8 human detection and tracking
@@ -141,8 +141,12 @@ Note: The orientation field uses **Quaternions**. To change the final facing dir
 To enable vision-based human detection:
 
 ```bash
-ros2 run drone_follow yolo_tracker --ros-args -p use_sim_time:=true
+ros2 run drone_follow yolo_tracker
 ```
+Also display a real-time 2D plot showing the state of the drone and the person during the tracking process.
+
+![3dplot](imgs/tracker.jpeg)
+
 
 ## 8. Visualization and Debug Tools
 To visualize the robot state, TF tree, and sensor data, an RViz configuration is provided.
@@ -158,7 +162,7 @@ ros2 launch drone_main display.launch.py
 
 For visualization purposes, additional nodes are available.
 
-### 3D Waypoint Plotter (Path Visualization)
+### 3D Path Plotter (Visualization)
 
 ```bash
 ros2 run drone_navigation plotter
