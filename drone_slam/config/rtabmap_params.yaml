@@ -1,0 +1,38 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    frame_id: 'base_link'
+    odom_frame_id: 'odom'
+    map_frame_id: 'map'
+    
+    subscribe_scan_cloud: true
+    subscribe_rgb: false
+    subscribe_depth: false
+    odom_sensor_sync: true
+
+    Reg:
+      Strategy: '0'
+      
+    Rtabmap:
+      DetectionRate: '1'
+      
+    RGBD:
+      LinearUpdate: '0.05'
+      AngularUpdate: '0.01'
+      CreateOccupancyGrid: 'true'
+      
+    Mem:
+      IncrementalMemory: 'true'
+      
+    Cloud:
+      FilterNaN: 'true'
+      Decimation: '2'
+      
+    Grid:
+      3D: 'true'
+      FromDepth: 'false'
+      Sensor: '0'
+      RangeMax: '15.0'
+      CellSize: '0.25'
+      RayTracing: 'true'
+      NormalsSegmentation: 'false'

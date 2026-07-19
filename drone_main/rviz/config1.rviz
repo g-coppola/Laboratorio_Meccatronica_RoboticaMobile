@@ -10,7 +10,6 @@ Panels:
         - /PointCloud21
         - /PointCloud22
         - /ColorOccupancyGrid1
-        - /Path1
       Splitter Ratio: 0.5
     Tree Height: 495
   - Class: rviz_common/Selection
@@ -217,8 +216,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 12.356468200683594
-        Min Value: -0.00028210878372192383
+        Max Value: 12.614864349365234
+        Min Value: -0.0003463923931121826
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -265,34 +264,6 @@ Visualization Manager:
       Voxel Alpha: 1
       Voxel Coloring: Z-Axis
       Voxel Rendering: Occupied Voxels
-    - Alpha: 1
-      Buffer Length: 1
-      Class: rviz_default_plugins/Path
-      Color: 255; 0; 0
-      Enabled: true
-      Head Diameter: 0.30000001192092896
-      Head Length: 0.20000000298023224
-      Length: 0.30000001192092896
-      Line Style: Billboards
-      Line Width: 0.20000000298023224
-      Name: Path
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
-      Pose Style: None
-      Radius: 0.029999999329447746
-      Shaft Diameter: 0.10000000149011612
-      Shaft Length: 0.10000000149011612
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /planner/path
-      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

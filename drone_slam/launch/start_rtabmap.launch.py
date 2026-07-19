@@ -1,50 +1,19 @@
+import os
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
-
 def generate_launch_description():
 
-    params = {
-
-        'use_sim_time': True,
-
-        # frames
-        'frame_id': 'base_link',
-        'odom_frame_id': 'odom',
-        'map_frame_id': 'map',
-
-        # SENSORI
-        'subscribe_scan_cloud': True,
-        'subscribe_rgb': False,
-        'subscribe_depth': False,
-
-        # ODOM
-        'odom_sensor_sync': True,
-
-        # SLAM CORE
-        'Reg/Strategy': '0',
-        'Rtabmap/DetectionRate': '1',
-
-        # KEYFRAMES (CRUCIALE)
-        'RGBD/LinearUpdate': '0.05',
-        'RGBD/AngularUpdate': '0.01',
-
-        'Mem/IncrementalMemory': 'true',
-
-        # CLOUD
-        'Cloud/FilterNaN': 'true',
-        'Cloud/Decimation': '2',
-
-        # OCCUPANCY GRID 3D / OCTOMAP (rtabmap genera lui l'octomap, niente octomap_server)
-        'Grid/3D': 'true',                   # costruisce griglia 3D, non solo proiezione 2D
-        'Grid/FromDepth': 'false',           # la sorgente e' la nuvola lidar, non una depth camera
-        'Grid/Sensor': '0',                  # 0 = usa scan_cloud come sorgente della griglia
-        'Grid/RangeMax': '15.0',             # deve combaciare col range max del lidar
-        'Grid/CellSize': '0.25',             # risoluzione voxel (prima era 'resolution' di octomap_server)
-        'Grid/RayTracing': 'true',           # marca anche le celle libere via ray tracing, non solo quelle occupate
-        'Grid/NormalsSegmentation': 'false', # niente segmentazione superfici basata su normali (serve per depth camera)
-        'RGBD/CreateOccupancyGrid': 'true'   # abilita la creazione/pubblicazione della grid 3D/octomap
-    }
+    # Sostituisci 'drone_slam' con il nome effettivo del tuo pacchetto se diverso
+    pkg_name = 'drone_slam'
+    
+    # Percorso assoluto al file YAML
+    config_file = os.path.join(
+        get_package_share_directory(pkg_name),
+        'config',
+        'rtabmap_params.yaml'
+    )
 
     remap = [
         ('scan_cloud', '/scan_cloud'),
@@ -63,7 +32,7 @@ def generate_launch_description():
         package='rtabmap_slam',
         executable='rtabmap',
         output='screen',
-        parameters=[params],
+        parameters=[config_file],  # Passa direttamente il file YAML qui
         remappings=remap
     )
 
@@ -74,7 +43,7 @@ def generate_launch_description():
         package='rtabmap_viz',
         executable='rtabmap_viz',
         output='screen',
-        parameters=[params],
+        parameters=[config_file],  # Passa direttamente il file YAML qui
         remappings=remap
     )
 

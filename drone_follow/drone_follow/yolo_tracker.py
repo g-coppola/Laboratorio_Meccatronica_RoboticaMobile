@@ -14,7 +14,7 @@ from ultralytics import YOLO
 
 
 class SimpleKalmanFilter:
-    """2D Kalman Filter (Constant Velocity Model) with adaptive R and outlier gating."""
+    """2D Kalman Filter (Constant Velocity Model) with fixed R and outlier gating."""
     def __init__(self, base_r=0.5):
         self.x = np.zeros((4, 1))  # State: [x, y, vx, vy]
         self.P = np.eye(4) * 1000.0
@@ -22,7 +22,7 @@ class SimpleKalmanFilter:
         self.H = np.array([[1, 0, 0, 0],
                            [0, 1, 0, 0]])
         self.base_r = base_r
-        self.R = np.eye(2) * base_r
+        self.R = np.eye(2) * base_r  # Fixed R matrix
         self.Q = np.eye(4) * 0.1
         self.is_initialized = False
 
@@ -33,10 +33,6 @@ class SimpleKalmanFilter:
         self.F[1, 3] = dt
         self.x = np.dot(self.F, self.x)
         self.P = np.dot(np.dot(self.F, self.P), self.F.T) + self.Q
-
-    def set_measurement_noise(self, drone_ang_rate, drone_speed):
-        scale = 1.0 + 4.0 * min(drone_ang_rate, 2.0) + 1.5 * min(drone_speed, 3.0)
-        self.R = np.eye(2) * (self.base_r * scale)
 
     def mahalanobis_gate(self, z, gate_threshold=9.21):
         if not self.is_initialized:
@@ -144,13 +140,13 @@ class YoloTrackerNode(Node):
         self.drone_history_y = []
 
         # ACTOR'S REAL TRAJECTORY (Extracted from XML)
-        # Removing duplicates caused by in-place rotations and keeping the order
         self.actor_real_x = [9.0, 9.0, 0.0, 0.0, -1.5, -1.5, -9.0, -9.0, -1.5, -1.5, 1.0, 1.0, 9.0]
         self.actor_real_y = [-21.5, 1.0, 1.0, 13.0, 13.0, 23.5, 23.5, -21.5, -21.5, -14.0, -14.0, -21.5, -21.5]
 
         self.is_moving = False
         self.current_goal_x = None
         self.current_goal_y = None
+        self.current_goal_z = None  # Tracks Z for the 3D distance calculation
 
         self.kf = SimpleKalmanFilter(base_r=0.5)
         self.last_meas_time = None
@@ -161,10 +157,10 @@ class YoloTrackerNode(Node):
         self._v_smooth = None
 
         self.activation_distance = 5.5
-        self.stop_distance = 0.5
-        self.goal_reach_tolerance = 0.1
+        self.stop_distance = 0.6
+        self.goal_reach_tolerance = 0.2
 
-        self.goal_delay = 2.0             # Seconds to wait before moving
+        self.goal_delay = 1.0             # Seconds to wait before moving
         self.activation_start_time = None # Timestamp when the threshold was crossed
 
         self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.camera_callback, 10)
@@ -216,16 +212,18 @@ class YoloTrackerNode(Node):
         )
         self.have_odom = True
 
-        if self.is_moving and self.current_goal_x is not None and self.current_goal_y is not None:
-            dist_to_goal = math.hypot(
-                msg.pose.pose.position.x - self.current_goal_x,
-                msg.pose.pose.position.y - self.current_goal_y,
+        # 3D tolerance check
+        if self.is_moving and self.current_goal_x is not None and self.current_goal_y is not None and self.current_goal_z is not None:
+            dist_to_goal = math.dist(
+                (msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z),
+                (self.current_goal_x, self.current_goal_y, self.current_goal_z)
             )
             if dist_to_goal <= self.goal_reach_tolerance:
                 self.get_logger().info('Goal reached! Waiting for new instructions...')
                 self.is_moving = False
                 self.current_goal_x = None
                 self.current_goal_y = None
+                self.current_goal_z = None
                 self.lost_frames = 0
                 self.activation_start_time = None 
 
@@ -312,9 +310,7 @@ class YoloTrackerNode(Node):
                 meas_x = cam_x + t * D_x
                 meas_y = cam_y + t * D_y
 
-                ang_rate = self.odom_buffer.angular_rate()
-                lin_speed = self.odom_buffer.linear_speed()
-                self.kf.set_measurement_noise(ang_rate, lin_speed)
+                # Dynamic measurement noise calculation (set_measurement_noise) was removed to keep R fixed
 
                 if self.kf.mahalanobis_gate([meas_x, meas_y]):
                     self.kf.predict(dt)
@@ -340,7 +336,6 @@ class YoloTrackerNode(Node):
                 self.path_history.append((meas_x, meas_y))
             else:
                 last_x, last_y = self.path_history[-1]
-                # Add only if moved a minimum distance to prevent memory bloat
                 if math.hypot(last_x - meas_x, last_y - meas_y) > 0.2:
                     self.path_history.append((meas_x, meas_y))
 
@@ -370,7 +365,7 @@ class YoloTrackerNode(Node):
                         target_x, target_y = px, py
                 tracking_mode = "RAW MEASUREMENT (Farthest)"
 
-            elif not person_detected and self.kf.is_initialized and self.lost_frames < 30:
+            elif not person_detected and self.kf.is_initialized and self.lost_frames < 50:
                 target_x = float(self.kf.x[0, 0])
                 target_y = float(self.kf.x[1, 0])
                 tracking_mode = "KALMAN (Prediction)"
@@ -391,6 +386,7 @@ class YoloTrackerNode(Node):
                         self.send_goal(goal_x, goal_y, target_yaw)
                         self.current_goal_x = goal_x
                         self.current_goal_y = goal_y
+                        self.current_goal_z = 3.0  # Assigned fixed height 3.0 to internal tracking
                         self.is_moving = True
                         
                         self.activation_start_time = None
@@ -408,7 +404,7 @@ class YoloTrackerNode(Node):
 
         msg.pose.position.x = float(gx)
         msg.pose.position.y = float(gy)
-        msg.pose.position.z = 3.0
+        msg.pose.position.z = 3.0  # Z sent to the controller is always 3.0
 
         msg.pose.orientation.z = math.sin(target_yaw / 2.0)
         msg.pose.orientation.w = math.cos(target_yaw / 2.0)
@@ -416,7 +412,7 @@ class YoloTrackerNode(Node):
         msg.pose.orientation.y = 0.0
 
         self.goal_pub.publish(msg)
-        self.get_logger().info(f"Goal Sent -> X:{gx:.2f}, Y:{gy:.2f}")
+        self.get_logger().info(f"Goal Sent -> X:{gx:.2f}, Y:{gy:.2f}, Z:3.00")
 
     def update_plot(self):
         self.setup_plot()

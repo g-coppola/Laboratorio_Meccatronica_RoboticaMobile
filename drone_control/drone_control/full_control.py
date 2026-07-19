@@ -60,8 +60,19 @@ class FullDroneController(Node):
         
         self.target_roll = 0.0
         self.target_pitch = 0.0
+
+        # --- PHYSICAL PARAMETERS & BASE THRUST ---
+        m_base = 2.0
+        m_rotor = 0.01607
+        mass = m_base + (4 * m_rotor)
+        gravity = 9.81
+        motor_constant = 8.54858e-06
         
-        # Feedforward Gain (Adjustable)
+        # Hovering speed calculation: w = sqrt(m*g / (4*C_T))
+        self.base_thrust = math.sqrt((mass * gravity) / (4 * motor_constant))
+
+        
+        # Feedforward Gain
         self.k_ff_xy = 0.1
         self.k_ff_z = 0.5
         
@@ -186,7 +197,7 @@ class FullDroneController(Node):
         err_yaw = self.target_yaw - curr_yaw
         err_yaw = math.atan2(math.sin(err_yaw), math.cos(err_yaw))
 
-        base_thrust = 770.0 
+        
         
         # NEW: + altitude feedforward
         u_alt   = self.pid_alt.compute(err_alt, dt) + (self.k_ff_z * self.target_vz)
@@ -194,7 +205,7 @@ class FullDroneController(Node):
         u_pitch = self.pid_pitch.compute(err_pitch, dt)
         u_yaw   = self.pid_yaw.compute(err_yaw, dt)
         
-        thrust = base_thrust + u_alt
+        thrust = self.base_thrust + u_alt
 
         # --- MIXING MATRIX ---
         w0 = thrust - u_roll - u_pitch - u_yaw   

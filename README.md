@@ -1,4 +1,4 @@
-# Autonomous 3D Drone Navigation and Human Following System (ROS 2 + SLAM + AI Vision)
+# Autonomous 3D Drone Navigation and Human Following System (ROS 2 + Mapping + AI Vision)
 
 This repository implements a complete **autonomous UAV simulation system** in ROS 2, combining:
 
