@@ -194,8 +194,17 @@ Runs YOLOv8 on the camera stream and displays the detected objects with bounding
 
 ![yolo_cam](imgs/yolo_cam.png)
 
+## 9. Technical Report and Demonstration Videos
+A complete technical report describing the system architecture, implementation details, algorithms, and experimental results is available here:
 
-## 9. Documentation
+**Technical Report:** [Open Technical Report](Report.pdf)
+
+### Demonstration Videos
+The demonstration videos of the autonomous UAV system are available in the following Google Drive folder:
+
+**Demo Videos:** [Open Demo Videos Folder](https://drive.google.com/drive/folders/1B-mA8UbwkUpUnYRxD4US4kn_6DOJGosh?usp=sharing)
+
+## 10. Documentation
 - [Gazebo Fortress Documentation](https://gazebosim.org/docs/fortress/ros_installation/)
 - [Gazebo Models](https://app.gazebosim.org/fuel/models)
 - [ROS Humble Documentation](https://docs.ros.org/en/humble/About-ROS.html)
